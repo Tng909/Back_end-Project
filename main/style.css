@@ -1,0 +1,87 @@
+.app-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%; /* circle */
+  object-fit: cover;
+  border: 2px solid #1ed760;
+}
+
+.bg-gradient-dark {
+  background: linear-gradient(to bottom, #1e1e1e, #121212);
+};
+
+.style-subtext {
+  font-size: 12px;
+};
+
+.style-range {
+  accent-color: #1ed760;
+  cursor: pointer;
+};
+
+.card-track {
+  background-color: #181818;
+  transition: background-color 0.2s ease-in-out;
+  cursor: pointer;
+};
+
+.card-track:hover {
+  background-color: #282828;
+};
+
+.btn-link:hover {
+  color: #fff !important;
+};
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+};
+
+.form-control:focus {
+  background-color: #383d41 !important;
+  color: #fff !important;
+};
+
+a:hover {
+  color: #fff !important;
+}
+
+.app-logo-sm {
+  width: 32px;
+  height: 32px;
+}
+
+.account-card {
+  max-width: 560px;
+}
+
+.account-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #1ed760;
+  color: #000;
+  flex-shrink: 0;
+}
+
+.success-check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(30, 215, 96, 0.15);
+  border: 2px solid #1ed760;
+}
+
+#submitBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+};
+
+.app-logo {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #1ed760;
+};
