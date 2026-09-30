@@ -28,4 +28,4 @@ app.get('/', (req, res) => {res.sendFile(path.join(__dirname, 'main', 'Main.html
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server on port http:localhost:${PORT}/main`));
+app.listen(PORT, () => console.log(`Server on port http:localhost:${PORT}`));
