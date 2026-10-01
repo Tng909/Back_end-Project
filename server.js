@@ -20,6 +20,16 @@ app.use('/api/tracks', trackRoutes);
 // Return JSON (not HTML) for unknown API routes so frontend res.json() never gets <!DOCTYPE
 app.use('/api', (req, res) => res.status(404).json({ error: `API route not found: ${req.method} ${req.originalUrl}` }));
 
+// JSON error handler (e.g. multer: wrong file type / too large) so frontend gets JSON
+// eslint-disable-next-line no-unused-vars
+app.use('/api', (err, req, res, next) => {
+  if (err) {
+    const status = err.status || 400;
+    return res.status(status).json({ error: err.message || 'Upload failed.' });
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'main')));
 
 app.get('/', (req, res) => {res.sendFile(path.join(__dirname, 'main', 'Main.html'));

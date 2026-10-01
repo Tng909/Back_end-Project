@@ -10,8 +10,10 @@ package-lock.json
 # Uploads (user content, regenerated at runtime)
 uploads/audio/*
 uploads/covers/*
+uploads/avatars/*
 !uploads/audio/.gitkeep
 !uploads/covers/.gitkeep
+!uploads/avatars/.gitkeep
 
 # Logs / OS
 *.log

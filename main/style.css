@@ -1,55 +1,142 @@
+:root {
+  --neon-blue: #3da5ff;
+  --neon-cyan: #5eebff;
+  --neon-blue-dim: rgba(61, 165, 255, 0.35);
+}
+
+/* Bootstrap's .text-success / .bg-success / .btn-success drive most of the
+   green accent throughout the app (nav pill, login button, icons). Override
+   them here so the whole app reskins without touching Main.html. */
+.text-success {
+  color: var(--neon-cyan) !important;
+}
+
+.bg-success {
+  background-color: var(--neon-blue) !important;
+}
+
+.btn-success {
+  background-color: var(--neon-blue) !important;
+  border-color: var(--neon-blue) !important;
+  box-shadow: 0 0 14px var(--neon-blue-dim);
+}
+
+.btn-success:hover {
+  background-color: var(--neon-cyan) !important;
+  border-color: var(--neon-cyan) !important;
+}
+
+.nav-pills .nav-link.active {
+  box-shadow: 0 0 16px var(--neon-blue-dim);
+}
+
 .app-logo {
   width: 42px;
   height: 42px;
-  border-radius: 50%; /* circle */
+  border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #1ed760;
+  border: 2px solid var(--neon-blue);
+  box-shadow: 0 0 10px var(--neon-blue-dim);
 }
 
 .bg-gradient-dark {
-  background: linear-gradient(to bottom, #1e1e1e, #121212);
-};
+  background: linear-gradient(to bottom, #0d1424, #050810);
+}
 
 .style-subtext {
   font-size: 12px;
-};
+}
 
 .style-range {
-  accent-color: #1ed760;
+  accent-color: var(--neon-blue);
   cursor: pointer;
-};
+}
 
 .card-track {
-  background-color: #181818;
-  transition: background-color 0.2s ease-in-out;
+  background-color: #0d1526;
+  border: 1px solid rgba(61, 165, 255, 0.12);
+  transition: background-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
   cursor: pointer;
-};
+  height: 100%;
+  min-width: 0;
+}
 
 .card-track:hover {
-  background-color: #282828;
-};
+  background-color: #111d38;
+  box-shadow: 0 0 16px var(--neon-blue-dim);
+}
+
+.card-track .card-img-top {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.card-track .card-body {
+  min-width: 0;
+  overflow: hidden;
+}
 
 .btn-link:hover {
-  color: #fff !important;
-};
+  color: var(--neon-cyan) !important;
+}
 
 .auth-card {
   width: 100%;
   max-width: 420px;
-};
+}
 
 .form-control:focus {
-  background-color: #383d41 !important;
+  background-color: #101a30 !important;
   color: #fff !important;
-};
+  border-color: var(--neon-blue) !important;
+  box-shadow: 0 0 0 3px var(--neon-blue-dim) !important;
+}
 
 a:hover {
-  color: #fff !important;
+  color: var(--neon-cyan) !important;
 }
 
 .app-logo-sm {
   width: 32px;
   height: 32px;
+}
+
+/* Logged-in user pill on Main page: avatar picture + username */
+#userMenuButton {
+  padding: 4px 14px 4px 4px;
+}
+
+.user-menu-avatar-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.user-menu-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.user-menu-fallback {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--neon-blue);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .account-card {
@@ -60,28 +147,220 @@ a:hover {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #1ed760;
-  color: #000;
+  background: var(--neon-blue);
+  color: #04101f;
   flex-shrink: 0;
+  overflow: hidden;
+  cursor: pointer;
+  background-size: cover;
+  background-position: center;
+  border: 2px solid var(--neon-blue);
+  transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+button.account-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 3px var(--neon-blue-dim);
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+/* Avatar viewer popup: transparent overlay, circled image preview */
+#avatarModal .modal-content.avatar-viewer-content {
+  background: rgba(5, 8, 16, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(61, 165, 255, 0.2);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.55);
+  position: relative;
+}
+
+#avatarModal .modal-backdrop,
+#avatarModal.modal {
+  background-color: transparent;
+}
+
+.modal-backdrop.avatar-transparent-backdrop {
+  background-color: rgba(0, 0, 0, 0.55);
+  opacity: 1 !important;
+}
+
+.avatar-viewer-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.avatar-viewer-circle {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: var(--neon-blue);
+  color: #04101f;
+  font-size: 84px;
+  border: 4px solid var(--neon-blue);
+  overflow: hidden;
+}
+
+.avatar-viewer-img {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--neon-blue);
+  display: block;
+  background: #0d1526;
 }
 
 .success-check {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: rgba(30, 215, 96, 0.15);
-  border: 2px solid #1ed760;
+  background: rgba(61, 165, 255, 0.15);
+  border: 2px solid var(--neon-blue);
 }
 
 #submitBtn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-};
+}
 
-.app-logo {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #1ed760;
-};
+/* ---------- Responsive: PC <-> Mobile (Main + Account Manager + auth) ---------- */
+.app-main {
+  min-width: 0;
+}
+
+.main-toolbar .style-search {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+#authControls {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+#authControls .btn {
+  white-space: nowrap;
+}
+
+.player-bar {
+  flex-wrap: nowrap;
+}
+
+.player-track,
+.player-controls,
+.player-volume {
+  min-width: 0;
+}
+
+.player-meta {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* Tablet and below */
+@media (max-width: 991.98px) {
+  .player-volume {
+    display: none !important;
+  }
+
+  .player-track {
+    width: 32% !important;
+  }
+
+  .player-controls {
+    width: 68% !important;
+    max-width: none !important;
+  }
+}
+
+/* Mobile phones */
+@media (max-width: 767.98px) {
+  body {
+    overflow: auto !important;
+  }
+
+  .mobile-topbar .small {
+    letter-spacing: 0.04em;
+  }
+
+  .mobile-auth .btn {
+    padding: 4px 12px;
+    font-size: 13px;
+  }
+
+  .mobile-auth #userMenuButton {
+    max-width: 46vw;
+  }
+
+  .mobile-auth #userMenuButton span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .main-toolbar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .main-toolbar .style-search {
+    max-width: none !important;
+    width: 100%;
+  }
+
+  #authControls {
+    display: none !important;
+  }
+
+  .player-bar {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .player-track {
+    width: 100% !important;
+    order: 1;
+  }
+
+  .player-cover {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .player-controls {
+    width: 100% !important;
+    order: 2;
+  }
+
+  .player-extra {
+    display: none !important;
+  }
+
+  .player-seek span {
+    min-width: 34px;
+    text-align: center;
+  }
+
+  .avatar-viewer-circle,
+  .avatar-viewer-img {
+    width: 170px;
+    height: 170px;
+  }
+
+  .avatar-viewer-circle {
+    font-size: 64px;
+  }
+
+  .auth-card {
+    margin: 0 12px;
+  }
+}
+

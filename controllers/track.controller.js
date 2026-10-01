@@ -19,6 +19,18 @@ exports.getAllTracks = async (req, res) => {
   }
 };
 
+exports.getGenres = async (req, res) => {
+  try {
+    // Distinct non-empty genres straight from the tracks collection,
+    // so the admin filter always matches what is actually in the DB
+    // (config/seed.js currently seeds: Pop, Anime, Soundtrack).
+    const genres = await Track.distinct('genre');
+    res.json(genres.filter(Boolean).sort((a, b) => a.localeCompare(b)));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 exports.getTrackById = async (req, res) => {
   try {
     const track = await Track.findById(req.params.id);

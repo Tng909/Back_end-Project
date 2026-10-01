@@ -26,7 +26,7 @@
     <div class="card bg-dark text-white p-4 shadow-lg rounded-4 account-card w-100">
 
       <div class="d-flex align-items-center gap-3 mb-1">
-        <div class="account-avatar d-flex align-items-center justify-content-center fw-bold fs-4" id="avatarCircle">?</div>
+        <button type="button" id="avatarCircle" class="account-avatar d-flex align-items-center justify-content-center fw-bold fs-4 border-0 p-0" title="View avatar">?</button>
         <div>
           <h3 class="fw-bold mb-0">Account Manager</h3>
           <small class="text-secondary style-subtext" id="accountSub">View and update your profile</small>
@@ -83,6 +83,32 @@
         <h5 class="fw-bold mb-1">Profile updated!</h5>
         <p class="text-secondary small mb-3">Your changes were saved successfully.</p>
         <button type="button" class="btn btn-success rounded-pill fw-bold w-100" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Avatar viewer popup (transparent background) -->
+  <div class="modal fade" id="avatarModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content avatar-viewer-content text-white text-center p-4 rounded-4">
+        <button type="button" class="btn-close btn-close-white avatar-viewer-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div id="avatarViewerCircle" class="avatar-viewer-circle mx-auto mb-3 d-flex align-items-center justify-content-center fw-bold">?</div>
+        <img id="avatarViewerImg" class="avatar-viewer-img mx-auto mb-3 d-none" alt="Avatar preview">
+        <div id="avatarViewerHint" class="text-secondary small mb-3">Click "Change avatar" to pick a picture from your device.</div>
+        <input type="file" id="avatarFileInput" accept="image/*" class="d-none">
+        <div class="d-grid gap-2 mb-3">
+          <button type="button" id="changeAvatarBtn" class="btn btn-success rounded-pill fw-bold w-100">
+            <i class="fa-solid fa-image me-1"></i> Change avatar
+          </button>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" id="avatarCancelBtn" class="btn btn-outline-light rounded-pill fw-semibold w-50" data-bs-dismiss="modal">
+            <i class="fa-solid fa-xmark me-1"></i> Cancel
+          </button>
+          <button type="button" id="avatarConfirmBtn" class="btn btn-success rounded-pill fw-bold w-50" disabled>
+            <i class="fa-solid fa-check me-1"></i> Confirm
+          </button>
+        </div>
       </div>
     </div>
   </div>

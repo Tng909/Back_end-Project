@@ -7,6 +7,8 @@ const storage = multer.diskStorage({
       cb(null, 'uploads/audio/');
     } else if (file.fieldname === 'cover') {
       cb(null, 'uploads/covers/');
+    } else if (file.fieldname === 'avatar') {
+      cb(null, 'uploads/avatars/');
     } else {
       cb(new Error('Invalid field name'), false);
     }
@@ -25,7 +27,7 @@ const fileFilter = (req, file, cb) => {
     } else {
       cb(new Error('Only audio files allowed!'), false);
     }
-  } else if (file.fieldname === 'cover') {
+  } else if (file.fieldname === 'cover' || file.fieldname === 'avatar') {
     if (file.mimetype.startsWith('image/')) {
       cb(null, true);
     } else {

@@ -61,7 +61,7 @@ const loginForm = document.getElementById('loginForm');
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      window.location.href = data.user.role === 'admin' ? '../admin.html' : '../Main.html';
+      window.location.href = data.user.role === 'admin' ? '../Admin/Admin_dashbroad.html' : '../Main.html';
     } catch (err) {
       showError(err.message);
     }

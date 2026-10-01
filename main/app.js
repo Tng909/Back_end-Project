@@ -50,18 +50,26 @@ function renderAuthControls() {
       <a href="verify/register.html" class="btn btn-outline-light rounded-pill fw-semibold">Register</a>
       <a href="verify/login.html" class="btn btn-success rounded-pill fw-semibold">Login</a>
     `;
+    syncMobileAuth(false);
     return;
   }
 
   const username = user.username || user.fullName || 'Account';
+  const avatarUrl = user.avatarUrl || '';
+  const initial = String(username).charAt(0).toUpperCase();
+  const avatarHtml = avatarUrl
+    ? `<img src="${escapeHtml(avatarUrl)}" alt="Avatar" class="user-menu-avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class="user-menu-fallback" style="display:none;">${escapeHtml(initial)}</span>`
+    : `<span class="user-menu-fallback">${escapeHtml(initial)}</span>`;
   authControls.innerHTML = `
     <div class="dropdown">
-      <button class="btn btn-success rounded-pill fw-semibold dropdown-toggle" type="button"
+      <button class="btn btn-success rounded-pill fw-semibold dropdown-toggle d-flex align-items-center gap-2" type="button"
         id="userMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-        ${escapeHtml(username)}
+        <span class="user-menu-avatar-wrap">${avatarHtml}</span>
+        <span>${escapeHtml(username)}</span>
       </button>
       <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark" aria-labelledby="userMenuButton">
         <li><a class="dropdown-item" href="management/user_manage.html" id="accountManagerLink">Account Manager</a></li>
+        ${user.role === 'admin' ? '<li><a class="dropdown-item" href="Admin/Admin_dashbroad.html" id="adminDashboardLink"><i class="fa-solid fa-shield-halved me-2"></i>Admin Dashboard</a></li>' : ''}
         <li><hr class="dropdown-divider"></li>
         <li><button class="dropdown-item" type="button" id="logoutButton">Logout</button></li>
       </ul>
@@ -73,6 +81,27 @@ function renderAuthControls() {
     localStorage.removeItem('user');
     renderAuthControls();
   });
+  syncMobileAuth(true);
+
+  // Refresh avatar/username from server so a picture changed in
+  // Account Manager shows up here even if localStorage is stale.
+  refreshUserFromServer();
+}
+
+// Mirror desktop auth controls into the mobile top bar (visible <md).
+function syncMobileAuth(isLoggedIn) {
+  const slot = document.querySelector('.mobile-auth');
+  if (!slot || !authControls) return;
+  slot.innerHTML = authControls.innerHTML;
+  slot.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+  const logout = slot.querySelector('button.dropdown-item');
+  if (isLoggedIn && logout) {
+    logout.addEventListener('click', () => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      renderAuthControls();
+    });
+  }
 }
 
 function escapeHtml(value) {
@@ -83,6 +112,36 @@ function escapeHtml(value) {
     '"': '&quot;',
     "'": '&#039;'
   }[character]));
+}
+
+// Pull latest profile (avatarUrl included) so Main page shows the
+// picture right after it is changed in Account Manager.
+async function refreshUserFromServer() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const res = await fetch(`${window.location.origin}/api/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const fresh = await res.json();
+    const stored = getStoredUser() || {};
+    const merged = {
+      ...stored,
+      fullName: fresh.fullName ?? stored.fullName,
+      username: fresh.username ?? stored.username,
+      email: fresh.email ?? stored.email,
+      phoneNumber: fresh.phoneNumber ?? stored.phoneNumber,
+      avatarUrl: fresh.avatarUrl ?? stored.avatarUrl ?? ''
+    };
+    localStorage.setItem('user', JSON.stringify(merged));
+    // Re-render once if avatar/username changed
+    const btn = document.getElementById('userMenuButton');
+    const img = btn?.querySelector('.user-menu-avatar');
+    if (merged.avatarUrl && (!img || img.getAttribute('src') !== merged.avatarUrl)) {
+      renderAuthControls();
+    }
+  } catch { /* offline -> keep cached user */ }
 }
 
 async function fetchTracks() {
@@ -239,7 +298,7 @@ function trackCardHtml(track, badge = '') {
     <div class="col">
       <div class="card card-track h-100 p-2 border-0 rounded-3 text-white" onclick="playTrack(${clickIdx})">
         ${badge ? `<span class="badge bg-success mb-2 align-self-start">${badge}</span>` : ''}
-        <img src="${resolveUrl(track.coverArtUrl)}" class="card-img-top rounded mb-2 ratio ratio-1x1 object-fit-cover" alt="${escapeHtml(track.title)}" loading="lazy">
+        <img src="${resolveUrl(track.coverArtUrl)}" class="card-img-top rounded mb-2" alt="${escapeHtml(track.title)}" loading="lazy">
         <div class="card-body p-0 text-truncate">
           <h6 class="card-title text-truncate mb-1 fw-bold fs-6">${escapeHtml(track.title)}</h6>
           <p class="card-text text-secondary text-truncate style-subtext mb-0">${escapeHtml(track.artist)}</p>

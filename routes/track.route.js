@@ -5,6 +5,7 @@ const trackController = require('../controllers/track.controller');
 const { verifyAdmin } = require('../middleware/auth.middleware');
 
 router.get('/', trackController.getAllTracks);
+router.get('/genres', trackController.getGenres);
 router.get('/:id', trackController.getTrackById);
 router.put('/:id', verifyAdmin, trackController.updateTrack);
 router.delete('/:id', verifyAdmin, trackController.deleteTrack);
