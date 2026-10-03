@@ -5,7 +5,8 @@ const User = require('../models/user');
 
 const seedAdmin = async () => {
   try {
-    const adminEmail = 'Admin@ex.com';
+    const adminEmailRaw = 'Admin@ex.com';
+    const adminEmail = adminEmailRaw.toLowerCase();
     const adminPass = 'AdminExPLE@$1';
 
     const exists = await User.findOne({
@@ -25,7 +26,13 @@ const seedAdmin = async () => {
       });
 
       await admin.save();
-      console.log('Admin seeded: Admin@ex.com');
+      console.log('Admin seeded: admin@ex.com');
+    } else if (exists.email && exists.email !== exists.email.toLowerCase()) {
+      // Heal rows seeded before the lowercase fix (mongoose lowercase:true only
+      // applies on .save(), never on queries) so email login works.
+      exists.email = exists.email.toLowerCase();
+      await exists.save();
+      console.log('Admin email normalized to lowercase: admin@ex.com');
     }
   } catch (err) {
     console.error('Admin seed err:', err.message);

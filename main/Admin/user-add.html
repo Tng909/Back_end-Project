@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Add user - music_Online Admin</title>
+    <link rel="stylesheet" href="admin.css">
+    <style>
+        .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+        .form-card { max-width: 640px; }
+        #addMsg { min-height: 1.4em; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside>
+            <div class="logo">music<b>_</b>Online</div>
+            <nav>
+                <a href="Admin_dashbroad.html#songs">Songs</a>
+                <a href="Admin_dashbroad.html#users">Users</a>
+            </nav>
+            <a class="side-home" href="../Main.html">Main page</a>
+        </aside>
+        <main>
+            <div class="topbar">
+                <a class="btn" href="Admin_dashbroad.html#users">Back to Users</a>
+            </div>
+            <section class="panel form-card" style="display:block">
+                <h1>Add user</h1>
+                <p class="sub">Fill in the info below to create a new account.</p>
+                <div class="wrap" style="padding:22px">
+                    <form id="userAddForm">
+                        <div class="row">
+                            <div><label for="u-name">Full name *</label><input id="u-name" required placeholder="Sophia Carter"></div>
+                            <div><label for="u-user">Username *</label><input id="u-user" required placeholder="sophia.carter"></div>
+                        </div>
+                        <div class="row">
+                            <div><label for="u-phone">Phone number *</label><input id="u-phone" type="tel" pattern="[0-9+\-\s()]{8,15}" required placeholder="0123456781"></div>
+                            <div><label for="u-mail">Email *</label><input id="u-mail" type="email" required placeholder="sophia.carter@example.com"></div>
+                        </div>
+                        <div class="row">
+                            <div><label for="u-pass">Password *</label><input id="u-pass" type="password" minlength="6" required autocomplete="new-password" placeholder="UserDemo@$1"></div>
+                            <div><label for="u-role">Role</label>
+                                <select id="u-role"><option value="user">user</option><option value="admin">admin</option></select>
+                            </div>
+                        </div>
+                        <p class="m" id="addMsg" role="alert"></p>
+                        <div class="foot">
+                            <a class="btn" href="Admin_dashbroad.html#users">Cancel</a>
+                            <button class="btn p" type="submit" id="saveBtn">Add user</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="user-add.js"></script>
+</body>
+</html>

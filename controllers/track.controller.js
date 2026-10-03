@@ -74,8 +74,16 @@ exports.createTrack = async (req, res) => {
 };
 exports.updateTrack = async (req, res) => {
   try {
-    const updated = await Track.findByIdAndUpdate(req.params.id, req.body, {
-      new: true
+    const update = { ...(req.body || {}) };
+    // Support multipart edit from song-edit.html (same field names as create).
+    if (req.files?.audio) update.audioUrl = `/uploads/audio/${req.files.audio[0].filename}`;
+    if (req.files?.cover) update.coverArtUrl = `/uploads/covers/${req.files.cover[0].filename}`;
+    if (update.durationSec !== undefined && update.durationSec !== '') {
+      update.durationSec = Number(update.durationSec);
+    }
+    const updated = await Track.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true
     });
     if (!updated) return res.status(404).json({
       error: 'Track not found'

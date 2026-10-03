@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Edit user - music_Online Admin</title>
+    <link rel="stylesheet" href="admin.css">
+    <style>
+        .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+        .form-card { max-width: 640px; }
+        #editMsg { min-height: 1.4em; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside>
+            <div class="logo">music<b>_</b>Online</div>
+            <nav>
+                <a href="Admin_dashbroad.html#songs">Songs</a>
+                <a href="Admin_dashbroad.html#users">Users</a>
+            </nav>
+            <a class="side-home" href="../Main.html">Main page</a>
+        </aside>
+        <main>
+            <div class="topbar">
+                <a class="btn" id="backBtn" href="Admin_dashbroad.html#users">Back to Users</a>
+            </div>
+            <section class="panel form-card" style="display:block">
+                <h1>Edit user</h1>
+                <p class="sub" id="editSub">Loading user info...</p>
+                <div class="wrap" style="padding:22px">
+                    <form id="userEditForm">
+                        <div class="row">
+                            <div><label for="u-name">Full name *</label><input id="u-name" required></div>
+                            <div><label for="u-user">Username *</label><input id="u-user" required></div>
+                        </div>
+                        <div class="row">
+                            <div><label for="u-phone">Phone *</label><input id="u-phone" type="tel" required></div>
+                            <div><label for="u-mail">Email *</label><input id="u-mail" type="email" required></div>
+                        </div>
+                        <div class="row">
+                            <div><label for="u-pass">New password <span class="m">(blank = keep current)</span></label><input id="u-pass" type="password" minlength="6" autocomplete="new-password"></div>
+                            <div><label for="u-role">Role</label>
+                                <select id="u-role"><option value="user">user</option><option value="admin">admin</option></select>
+                            </div>
+                        </div>
+                        <p class="m" id="editMsg" role="alert"></p>
+                        <div class="foot">
+                            <a class="btn" id="cancelBtn" href="Admin_dashbroad.html#users">Cancel</a>
+                            <button class="btn p" type="submit" id="saveBtn">Save changes</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="user-edit.js"></script>
+</body>
+</html>

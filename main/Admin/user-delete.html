@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Delete user - music_Online Admin</title>
+    <link rel="stylesheet" href="admin.css">
+    <style>
+        .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+        .del-card { max-width: 560px; border-top: 4px solid var(--acc); }
+        .del-title { color: var(--acc); }
+        #delMsg { min-height: 1.4em; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside>
+            <div class="logo">music<b>_</b>Online</div>
+            <nav>
+                <a href="Admin_dashbroad.html#songs">Songs</a>
+                <a href="Admin_dashbroad.html#users">Users</a>
+            </nav>
+            <a class="side-home" href="../Main.html">Main page</a>
+        </aside>
+        <main>
+            <div class="topbar">
+                <a class="btn" id="backBtn" href="Admin_dashbroad.html#users">Back to Users</a>
+            </div>
+            <section class="panel" style="display:block">
+                <h1 class="del-title">Delete user?</h1>
+                <p class="sub">This cannot be undone. Confirm to permanently delete.</p>
+                <div class="wrap del-card" style="padding:22px">
+                    <div class="t" id="delName">Loading...</div>
+                    <div class="m" id="delSub"></div>
+                    <p class="m" id="delMsg" role="alert"></p>
+                    <div class="foot">
+                        <a class="btn" id="cancelBtn" href="Admin_dashbroad.html#users">Cancel</a>
+                        <button class="btn p" id="confirmDelBtn" type="button">Yes, delete</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="user-delete.js"></script>
+</body>
+</html>

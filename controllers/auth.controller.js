@@ -1,59 +1,39 @@
 const User = require('../models/user');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { sendWelcomeEmail } = require('../utils/sendEmail');
 
 exports.register = async (req, res) => {
     try {
-        // First-time register requires a verified OTP: body must include { ..., otp }
-        // req.pendingUser is set by OTP_System.verifyOTPMiddleware when route uses it.
-        const source = req.pendingUser || req.body;
-        const {
-            fullName,
-            username,
-            email,
-            password,
-            phoneNumber
-        } = source;
-        const confirmPassword = req.pendingUser ? password : req.body.confirmPassword;
+        let { fullName, username, email, password, confirmPassword, phoneNumber } = req.body || {};
 
         if (!fullName || !username || !email || !password || !confirmPassword || !phoneNumber) {
-            return res.status(400).json({
-                error: 'All fields required.'
-            });
+            return res.status(400).json({ error: 'All fields required.' });
         }
-
+        fullName = String(fullName).trim();
+        username = String(username).trim();
+        email = String(email).trim().toLowerCase();
+        phoneNumber = String(phoneNumber).trim();
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format.' });
+        }
         if (password !== confirmPassword) {
-            return res.status(400).json({
-                error: 'Passwords do not match.'
-            });
+            return res.status(400).json({ error: 'Passwords do not match.' });
         }
 
-        // Enforce OTP verification on first-time direct register (no middleware)
-        if (!req.pendingUser) {
-            const { verifyOTPCode } = require('../middleware/OTP_System');
-            const check = verifyOTPCode(email, req.body.otp);
-            if (!check.ok) {
-                return res.status(check.status).json({
-                    error: `${check.error} (Email verification required for first-time registration.)`
-                });
-            }
-        }
-
-        const existingUser = await User.findOne({
-            $or: [{
-                email
-            }, {
-                username
-            }]
-        });
+        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
         if (existingUser) {
-            return res.status(400).json({
-                error: 'Username or Email already taken.'
-            });
+            return res.status(400).json({ error: 'Username or Email already taken.' });
         }
 
+        // bcrypt: hash password before storing (login compares with bcrypt.compare).
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
+
+        // Optional confirm token — informational only, login is NEVER gated on it.
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const emailConfirmTokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
 
         const user = new User({
             fullName,
@@ -62,19 +42,56 @@ exports.register = async (req, res) => {
             password: hashedPassword,
             phoneNumber,
             role: 'user',
-            isVerified: true
+            isVerified: true,
+            emailConfirmTokenHash,
+            emailConfirmTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000)
         });
 
         await user.save();
+
+        // Best-effort nodemailer email to the USER's own input address.
+        // Wrong SMTP creds (535) only warn in console — register still returns 201.
+        const appUrl = String(process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+        const confirmUrl = `${appUrl}/verify/verify-email.html?token=${rawToken}`;
+        const mail = await sendWelcomeEmail(email, confirmUrl);
+
         res.status(201).json({
-            message: 'Registration successful. Email verified.'
+            message: mail.sent
+                ? 'Registration successful. We sent a confirmation email — but you can log in right away.'
+                : 'Registration successful. You can now log in.',
+            emailSent: mail.sent,
+            ...(mail.sent ? {} : { emailNote: 'Confirmation email not delivered (sender not configured or SMTP rejected it). Login still works.' })
         });
     } catch (err) {
+        if (err.code === 11000) {
+            return res.status(400).json({ error: 'Username or Email already taken.' });
+        }
         res.status(500).json({
             error: err.message
         });
     }
 };
+
+// Optional confirm endpoint: marks isEmailConfirmed=true. Informational only.
+exports.confirmEmail = async (req, res) => {
+    try {
+        const token = String(req.body?.token || req.query?.token || '');
+        if (!/^[a-f0-9]{64}$/i.test(token)) {
+            return res.status(400).json({ error: 'Confirmation link is invalid or expired.' });
+        }
+        const emailConfirmTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        const user = await User.findOneAndUpdate(
+            { emailConfirmTokenHash, emailConfirmTokenExpires: { $gt: new Date() } },
+            { $set: { isEmailConfirmed: true }, $unset: { emailConfirmTokenHash: 1, emailConfirmTokenExpires: 1 } },
+            { new: true }
+        );
+        if (!user) return res.status(400).json({ error: 'Confirmation link is invalid or expired.' });
+        res.json({ message: 'Email confirmed. Thanks! You can log in anytime.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 
 exports.login = async (req, res) => {
     try {
@@ -90,19 +107,21 @@ exports.login = async (req, res) => {
         }
 
         identifier = String(identifier).trim();
-        const identifierLower = identifier.toLowerCase();
-        const isEmail = /^\S+@\S+\.\S+$/.test(identifier);
+        if (!identifier) return res.status(400).json({ error: 'Credentials required.' });
+        const looksLikeEmail = identifier.includes('@');
 
-        // Match username OR email (email case-insensitive, exact match)
+        // Match username OR email, case-insensitive, exact match.
+        // NOTE: previously email was matched with exact lowercase only, so any
+        // user stored with uppercase letters (e.g. seeded 'Admin@ex.com' —
+        // mongoose `lowercase:true` does NOT apply to findOne queries) could
+        // never log in by email, only by username. The $regex + $options:'i'
+        // anchors (^...$) fix that for all existing + future rows.
+        const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const exactCI = (s) => ({ $regex: `^${escapeRegex(s)}$`, $options: 'i' });
         const user = await User.findOne(
-            isEmail
-                ? { email: identifierLower }
-                : {
-                    $or: [
-                        { email: identifierLower },
-                        { username: identifier }
-                    ]
-                }
+            looksLikeEmail
+                ? { $or: [{ email: exactCI(identifier) }, { username: exactCI(identifier) }] }
+                : { $or: [{ email: exactCI(identifier) }, { username: identifier }] }
         );
 
         if (!user) return res.status(400).json({
@@ -228,6 +247,17 @@ exports.updateUserByAdmin = async (req, res) => {
     }
 };
 
+// ---- Admin: user detail (for the dashboard View page) ----
+exports.getUserById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('-password');
+        if (!user) return res.status(404).json({ error: 'User not found.' });
+        res.json(user);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.deleteUserByAdmin = async (req, res) => {
     try {
         // Prevent self-delete from dashboard
@@ -312,18 +342,15 @@ exports.resetPassword = async (req, res) => {
         }
 
         identifier = String(identifier).trim();
-        const identifierLower = identifier.toLowerCase();
-        const isEmail = /^\S+@\S+\.\S+$/.test(identifier);
+        if (!identifier) return res.status(404).json({ error: 'User not found.' });
+        const looksLikeEmail = identifier.includes('@');
+        const escapeRegex2 = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const exactCI2 = (s) => ({ $regex: `^${escapeRegex2(s)}$`, $options: 'i' });
 
         const user = await User.findOne(
-            isEmail
-                ? { email: identifierLower }
-                : {
-                    $or: [
-                        { email: identifierLower },
-                        { username: identifier }
-                    ]
-                }
+            looksLikeEmail
+                ? { $or: [{ email: exactCI2(identifier) }, { username: exactCI2(identifier) }] }
+                : { $or: [{ email: exactCI2(identifier) }, { username: identifier }] }
         );
 
         if (!user) return res.status(404).json({

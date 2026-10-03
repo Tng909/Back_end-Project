@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Edit song - music_Online Admin</title>
+    <link rel="stylesheet" href="admin.css">
+    <style>
+        .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+        .form-card { max-width: 640px; }
+        .form-card .card { width: 100%; }
+        #editMsg { min-height: 1.4em; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside>
+            <div class="logo">music<b>_</b>Online</div>
+            <nav>
+                <a href="Admin_dashbroad.html#songs">Songs</a>
+                <a href="Admin_dashbroad.html#users">Users</a>
+            </nav>
+            <a class="side-home" href="../Main.html">Main page</a>
+        </aside>
+        <main>
+            <div class="topbar">
+                <a class="btn" id="backBtn" href="Admin_dashbroad.html#songs">Back to Songs</a>
+            </div>
+            <section class="panel form-card" style="display:block">
+                <h1>Edit song</h1>
+                <p class="sub" id="editSub">Loading song info...</p>
+                <div class="wrap" style="padding:22px">
+                    <form id="songEditForm">
+                        <div class="row">
+                            <div><label for="s-title">Title *</label><input id="s-title" required placeholder="Billie Jean"></div>
+                            <div><label for="s-artist">Artist *</label><input id="s-artist" required placeholder="Michael Jackson"></div>
+                        </div>
+                        <div class="row">
+                            <div><label for="s-album">Album</label><input id="s-album" placeholder="Thriller"></div>
+                            <div><label for="s-genre">Genre *</label><input id="s-genre" required placeholder="Pop" list="genreList"></div>
+                        </div>
+                        <datalist id="genreList">
+                            <option value="Pop"></option>
+                            <option value="Folk"></option>
+                            <option value="Anime"></option>
+                            <option value="Soundtrack"></option>
+                            <option value="Electronic"></option>
+                        </datalist>
+                        <div class="row">
+                            <div><label for="s-audio">Replace audio (MP3)</label><input id="s-audio" type="file" accept="audio/*"></div>
+                            <div><label for="s-cover">Replace cover</label><input id="s-cover" type="file" accept="image/*"></div>
+                        </div>
+                        <div class="row">
+                            <div><label for="s-audioUrl">Audio URL</label><input id="s-audioUrl" placeholder="/record/song.mp3 or https://..."></div>
+                            <div><label for="s-coverUrl">Cover art URL</label><input id="s-coverUrl" placeholder="/Image/Cover_photo/x.jpg or https://..."></div>
+                        </div>
+                        <div><label for="s-duration">Duration (sec)</label><input id="s-duration" type="number" min="0" placeholder="294"></div>
+                        <p class="m" id="editMsg" role="alert"></p>
+                        <div class="foot">
+                            <a class="btn" id="cancelBtn" href="Admin_dashbroad.html#songs">Cancel</a>
+                            <button class="btn p" type="submit" id="saveBtn">Save changes</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="song-edit.js"></script>
+</body>
+</html>

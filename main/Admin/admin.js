@@ -1,16 +1,53 @@
-// Admin dashboard: render real DB data (tracks from config/seed.js shape,
-// users incl. config/seedUsers.js) + wire Add/Edit/Delete forms to the API.
+// Shared toast notice: floating top-center banner, auto-hide, easy to see.
+// Pages set sessionStorage 'admin:flash' (+ optional 'admin:flash-kind')
+// before redirecting here; view pages set it before going to their target.
+function showToast(msg, kind = 'ok', ms = 5000) {
+  if (!msg) return;
+  let stack = document.getElementById('toastStack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'toastStack';
+    stack.className = 'toast-stack';
+    stack.setAttribute('aria-live', 'polite');
+    document.body.prepend(stack);
+  }
+  const el = document.createElement('div');
+  el.className = `toast ${kind === 'err' ? 'err' : 'ok'}`;
+  el.setAttribute('role', 'status');
+  const icon = kind === 'err' ? '✕' : '✓';
+  el.innerHTML = `<span aria-hidden="true">${icon}</span><span></span><button class="x" type="button" aria-label="Dismiss">×</button>`;
+  el.querySelector('span:nth-child(2)').textContent = msg;
+  const kill = () => { el.classList.add('out'); setTimeout(() => el.remove(), 320); };
+  el.querySelector('.x').addEventListener('click', kill);
+  stack.appendChild(el);
+  setTimeout(kill, ms);
+}
+
+function consumeFlash(defaultKind = 'ok') {
+  try {
+    const msg = sessionStorage.getItem('admin:flash');
+    if (!msg) return;
+    const kind = sessionStorage.getItem('admin:flash-kind') || defaultKind;
+    sessionStorage.removeItem('admin:flash');
+    sessionStorage.removeItem('admin:flash-kind');
+    showToast(msg, kind);
+  } catch { /* ignore */ }
+}
+
+function setFlash(msg, kind = 'ok') {
+  try {
+    sessionStorage.setItem('admin:flash', msg);
+    sessionStorage.setItem('admin:flash-kind', kind);
+  } catch { /* ignore */ }
+}
+
+// Admin dashboard: tables + filters. Add/Edit/Delete live on
+// their own pages (song-add/edit/delete.html, user-add/edit/delete.html).
 const TRACKS_API = `${window.location.origin}/api/tracks`;
 const USERS_API = `${window.location.origin}/api/auth/users`;
 
 const songsBody = document.getElementById('songsBody');
 const usersBody = document.getElementById('usersBody');
-const songForm = document.getElementById('songForm');
-const userForm = document.getElementById('userForm');
-const songFormTitle = document.getElementById('songFormTitle');
-const userFormTitle = document.getElementById('userFormTitle');
-const songFormMsg = document.getElementById('songFormMsg');
-const userFormMsg = document.getElementById('userFormMsg');
 
 let tracksCache = [];
 let usersCache = [];
@@ -55,8 +92,9 @@ function songRow(t) {
     <td><span class="tag">${escapeHtml(t.genre || '—')}</span></td>
     <td><audio controls preload="none" src="${escapeHtml(t.audioUrl || '')}"></audio></td>
     <td><div class="acts">
-      <button class="btn s" type="button" data-edit-song="${t._id}">Edit</button>
-      <button class="btn s d" type="button" data-del-song="${t._id}">Delete</button>
+      <a class="btn s" href="song-view.html?id=${t._id}">View</a>
+      <a class="btn s" href="song-edit.html?id=${t._id}">Edit</a>
+      <a class="btn s d" href="song-delete.html?id=${t._id}">Delete</a>
     </div></td>
   </tr>`;
 }
@@ -89,97 +127,17 @@ async function loadSongs() {
   }
 }
 
-function openSongForm(track) {
-  document.getElementById('s-id').value = track?._id || '';
-  document.getElementById('s-title').value = track?.title || '';
-  document.getElementById('s-artist').value = track?.artist || '';
-  document.getElementById('s-album').value = track?.album || '';
-  document.getElementById('s-genre').value = track?.genre || '';
-  document.getElementById('s-audioUrl').value = track?.audioUrl || '';
-  document.getElementById('s-coverUrl').value = track?.coverArtUrl || '';
-  document.getElementById('s-duration').value = track?.durationSec ?? '';
-  document.getElementById('s-audio').value = '';
-  document.getElementById('s-cover').value = '';
-  songFormTitle.textContent = track ? 'Edit song' : 'Add song';
-  setMsg(songFormMsg, '');
-  window.location.hash = 'song-form';
-}
-
-if (songForm) {
-  songForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('s-id').value;
-    const audioFile = songForm.querySelector('#s-audio').files[0];
-    const coverFile = songForm.querySelector('#s-cover').files[0];
-    try {
-      let res;
-      if (audioFile || coverFile) {
-        const fd = new FormData();
-        fd.append('title', document.getElementById('s-title').value.trim());
-        fd.append('artist', document.getElementById('s-artist').value.trim());
-        fd.append('album', document.getElementById('s-album').value.trim());
-        fd.append('genre', document.getElementById('s-genre').value.trim());
-        const dur = document.getElementById('s-duration').value;
-        if (dur) fd.append('durationSec', dur);
-        if (audioFile) fd.append('audio', audioFile);
-        if (coverFile) fd.append('cover', coverFile);
-        const aUrl = document.getElementById('s-audioUrl').value.trim();
-        const cUrl = document.getElementById('s-coverUrl').value.trim();
-        if (aUrl && !audioFile) fd.append('audioUrl', aUrl);
-        if (cUrl && !coverFile) fd.append('coverArtUrl', cUrl);
-        res = await fetch(id ? `${TRACKS_API}/${id}` : TRACKS_API, {
-          method: id ? 'PUT' : 'POST',
-          headers: adminHeaders(false),
-          body: fd
-        });
-      } else {
-        res = await fetch(id ? `${TRACKS_API}/${id}` : TRACKS_API, {
-          method: id ? 'PUT' : 'POST',
-          headers: adminHeaders(true),
-          body: JSON.stringify({
-            title: document.getElementById('s-title').value.trim(),
-            artist: document.getElementById('s-artist').value.trim(),
-            album: document.getElementById('s-album').value.trim(),
-            genre: document.getElementById('s-genre').value.trim(),
-            audioUrl: document.getElementById('s-audioUrl').value.trim(),
-            coverArtUrl: document.getElementById('s-coverUrl').value.trim(),
-            durationSec: Number(document.getElementById('s-duration').value) || undefined
-          })
-        });
-      }
-      const data = await readJson(res);
-      if (!res.ok) throw new Error(data.error || 'Save song failed.');
-      setMsg(songFormMsg, id ? 'Song updated.' : 'Song added.', false);
-      await loadSongs();
-      setTimeout(() => { window.location.hash = 'songs'; }, 600);
-    } catch (err) {
-      setMsg(songFormMsg, err.message, true);
-    }
-  });
+function openSongForm() {
+  // Legacy hook: song add/edit now live on song-add.html / song-edit.html.
+  window.location.href = 'song-add.html';
 }
 
 if (songsBody) {
   songsBody.addEventListener('click', async (e) => {
-    const editBtn = e.target.closest('[data-edit-song]');
     const delBtn = e.target.closest('[data-del-song]');
-    if (editBtn) {
-      openSongForm(tracksCache.find((t) => t._id === editBtn.dataset.editSong));
-    } else if (delBtn) {
-      const delId = delBtn.dataset.delSong;
-      const t = tracksCache.find((x) => x._id === delId);
-      if (!confirm(`Delete song "${t?.title || delId}"?`)) return;
-      try {
-        const res = await fetch(`${TRACKS_API}/${delId}`, {
-          method: 'DELETE',
-          headers: adminHeaders(true)
-        });
-        const data = await readJson(res);
-        if (!res.ok) throw new Error(data.error || 'Delete failed.');
-        await loadSongs();
-      } catch (err) {
-        alert(err.message);
-      }
-    }
+    if (!delBtn) return;
+    const delId = delBtn.dataset.delSong;
+    window.location.href = `song-delete.html?id=${encodeURIComponent(delId)}`;
   });
 }
 
@@ -193,21 +151,38 @@ function userRow(u) {
     <td>${escapeHtml(u.email)}</td>
     <td class="m">••••••••</td>
     <td><div class="acts">
-      <button class="btn s" type="button" data-edit-user="${u._id}">Edit</button>
-      <button class="btn s d" type="button" data-del-user="${u._id}">Delete</button>
+      <a class="btn s" href="user-view.html?id=${u._id}">View</a>
+      <a class="btn s" href="user-edit.html?id=${u._id}">Edit</a>
+      <a class="btn s d" href="user-delete.html?id=${u._id}">Delete</a>
     </div></td>
   </tr>`;
 }
 
 async function loadUsers() {
+  // Same pattern as loadSongs(): fetch full list once, then apply the
+  // role dropdown (server has no /users?role=...) + live text search
+  // (fullName + username + email + phone) on the client.
+  const roleEl = document.getElementById('userRoleFilter');
+  const searchEl = document.getElementById('userSearchInput');
+  const role = roleEl ? roleEl.value : '';
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
   try {
     const res = await fetch(USERS_API, { headers: adminHeaders(true) });
     const data = await readJson(res);
     if (!res.ok) throw new Error(data.error || 'Failed to load users.');
-    usersCache = Array.isArray(data) ? data : [];
+    let list = Array.isArray(data) ? data : [];
+    if (role) {
+      list = list.filter((u) => String(u.role || '').toLowerCase() === role.toLowerCase());
+    }
+    if (q) {
+      list = list.filter((u) =>
+        `${u.fullName || ''} ${u.username || ''} ${u.email || ''} ${u.phoneNumber || ''}`.toLowerCase().includes(q)
+      );
+    }
+    usersCache = list;
     usersBody.innerHTML = usersCache.length
       ? usersCache.map(userRow).join('')
-      : '<tr><td colspan="6" class="m">No users yet.</td></tr>';
+      : '<tr><td colspan="6" class="m">No users match — try another keyword or Add user.</td></tr>';
   } catch (err) {
     let msg = err.message;
     if (msg.includes('API route not found')) {
@@ -220,80 +195,19 @@ async function loadUsers() {
 }
 
 function openUserForm(user) {
-  document.getElementById('u-id').value = user?._id || '';
-  document.getElementById('u-name').value = user?.fullName || '';
-  document.getElementById('u-user').value = user?.username || '';
-  document.getElementById('u-phone').value = user?.phoneNumber || '';
-  document.getElementById('u-mail').value = user?.email || '';
-  document.getElementById('u-pass').value = '';
-  document.getElementById('u-pass').required = !user;
-  document.getElementById('u-role').value = user?.role || 'user';
-  userFormTitle.textContent = user ? 'Edit user' : 'Add user';
-  setMsg(userFormMsg, '');
-  window.location.hash = 'user-form';
-}
-
-if (userForm) {
-  userForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const id = document.getElementById('u-id').value;
-    const payload = {
-      fullName: document.getElementById('u-name').value.trim(),
-      username: document.getElementById('u-user').value.trim(),
-      phoneNumber: document.getElementById('u-phone').value.trim(),
-      email: document.getElementById('u-mail').value.trim(),
-      role: document.getElementById('u-role').value
-    };
-    const pw = document.getElementById('u-pass').value;
-    if (pw) payload.password = pw;
-    try {
-      const res = await fetch(id ? `${USERS_API}/${id}` : USERS_API, {
-        method: id ? 'PUT' : 'POST',
-        headers: adminHeaders(true),
-        body: JSON.stringify(payload)
-      });
-      const data = await readJson(res);
-      if (!res.ok) throw new Error(data.error || 'Save user failed.');
-      setMsg(userFormMsg, id ? 'User updated.' : 'User added.', false);
-      await loadUsers();
-      setTimeout(() => { window.location.hash = 'users'; }, 600);
-    } catch (err) {
-      setMsg(userFormMsg, err.message, true);
-    }
-  });
+  // Legacy hook: user add/edit now live on user-add.html / user-edit.html.
+  if (user && user._id) window.location.href = `user-edit.html?id=${encodeURIComponent(user._id)}`;
+  else window.location.href = 'user-add.html';
 }
 
 if (usersBody) {
   usersBody.addEventListener('click', async (e) => {
-    const editBtn = e.target.closest('[data-edit-user]');
     const delBtn = e.target.closest('[data-del-user]');
-    if (editBtn) {
-      openUserForm(usersCache.find((u) => u._id === editBtn.dataset.editUser));
-    } else if (delBtn) {
-      const delId = delBtn.dataset.delUser;
-      const u = usersCache.find((x) => x._id === delId);
-      if (!confirm(`Delete user "${u?.username || delId}"?`)) return;
-      try {
-        const res = await fetch(`${USERS_API}/${delId}`, {
-          method: 'DELETE',
-          headers: adminHeaders(true)
-        });
-        const data = await readJson(res);
-        if (!res.ok) throw new Error(data.error || 'Delete failed.');
-        await loadUsers();
-      } catch (err) {
-        alert(err.message);
-      }
-    }
+    if (!delBtn) return;
+    const delId = delBtn.dataset.delUser;
+    window.location.href = `user-delete.html?id=${encodeURIComponent(delId)}`;
   });
 }
-
-document.querySelectorAll('a[href="#song-form"].btn.p').forEach((a) => {
-  a.addEventListener('click', () => openSongForm(null));
-});
-document.querySelectorAll('a[href="#user-form"].btn.p').forEach((a) => {
-  a.addEventListener('click', () => openUserForm(null));
-});
 
 // Genre filter dropdown: options built from distinct genres in the DB
 // (config/seed.js seeds Pop, Anime, Soundtrack) — never a stale hardcoded list.
@@ -328,6 +242,21 @@ if (songFilterBar) {
   });
 }
 
+// Same wiring as the Songs filter bar: submit button + role change reload,
+// typing in the search box reloads with a 250ms debounce.
+const userFilterBar = document.getElementById('userFilterBar');
+if (userFilterBar) {
+  userFilterBar.addEventListener('submit', (e) => {
+    e.preventDefault();
+    loadUsers();
+  });
+  userFilterBar.querySelector('#userRoleFilter')?.addEventListener('change', loadUsers);
+  userFilterBar.querySelector('#userSearchInput')?.addEventListener('input', () => {
+    clearTimeout(userFilterBar._t);
+    userFilterBar._t = setTimeout(loadUsers, 250);
+  });
+}
+
 // Keep the Add/Edit song genre datalist in sync with DB genres too
 async function syncGenreDatalist() {
   const list = document.getElementById('genreList');
@@ -348,3 +277,37 @@ async function initSongsSection() {
 
 initSongsSection();
 loadUsers();
+
+// Toast notice carried from add/edit/delete pages (also scrolls to the
+// right tab so the result row is visible next to the toast).
+(function showFlash() {
+  try {
+    const msg = sessionStorage.getItem('admin:flash');
+    if (!msg) return;
+    const kind = sessionStorage.getItem('admin:flash-kind') || 'ok';
+    const tab = sessionStorage.getItem('admin:flash-tab');
+    sessionStorage.removeItem('admin:flash');
+    sessionStorage.removeItem('admin:flash-kind');
+    sessionStorage.removeItem('admin:flash-tab');
+    if (tab === 'songs' || tab === 'users') window.location.hash = tab;
+    setTimeout(() => showToast(msg, kind, 6000), 60);
+  } catch { /* ignore */ }
+})();
+
+// Legacy deep-link from detail pages (kept): song-view.html / user-view.html
+// may store the id to edit in sessionStorage; open the NEW edit page instead.
+(function openPendingEditFromDetail() {
+  try {
+    const songId = sessionStorage.getItem('admin:edit-song');
+    if (songId) {
+      sessionStorage.removeItem('admin:edit-song');
+      window.location.href = `song-edit.html?id=${encodeURIComponent(songId)}`;
+      return;
+    }
+    const userId = sessionStorage.getItem('admin:edit-user');
+    if (userId) {
+      sessionStorage.removeItem('admin:edit-user');
+      window.location.href = `user-edit.html?id=${encodeURIComponent(userId)}`;
+    }
+  } catch { /* sessionStorage unavailable — ignore */ }
+})();

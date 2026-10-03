@@ -32,7 +32,7 @@
                         <option value="">All genres</option>
                     </select>
                     <button class="btn" type="submit">Search</button>
-                    <a class="btn p" href="#song-form">Add song</a>
+                    <a class="btn p" href="song-add.html">Add song</a>
                 </form>
 
                 <div class="wrap">
@@ -58,10 +58,15 @@
             <section id="users" class="panel">
                 <h1>Users</h1>
                 <p class="sub">Manage user accounts.</p>
-                <form class="bar" action="/admin/users" method="get">
-                    <input type="search" name="q" placeholder="Search users" aria-label="Search users">
+                <form class="bar" id="userFilterBar">
+                    <input type="search" id="userSearchInput" placeholder="Search users" aria-label="Search users">
+                    <select id="userRoleFilter" aria-label="Filter by role">
+                        <option value="">All roles</option>
+                        <option value="user">user</option>
+                        <option value="admin">admin</option>
+                    </select>
                     <button class="btn" type="submit">Search</button>
-                    <a class="btn p" href="#user-form">Add user</a>
+                    <a class="btn p" href="user-add.html">Add user</a>
                 </form>
 
                 <div class="wrap">
@@ -84,80 +89,6 @@
             </section>
 
         </main>
-    </div>
-
-    <!-- SONG FORM (wired to real API by admin.js; fields mirror config/seed.js) -->
-    <div class="modal" id="song-form">
-        <a class="backdrop" href="#songs" aria-label="Close"></a>
-        <form class="card" id="songForm">
-            <h2 id="songFormTitle">Add song</h2>
-            <input type="hidden" id="s-id" name="id">
-            <div class="row">
-                <div><label for="s-title">Title *</label><input id="s-title" name="title" required placeholder="Billie Jean"></div>
-                <div><label for="s-artist">Artist *</label><input id="s-artist" name="artist" required placeholder="Michael Jackson"></div>
-            </div>
-            <div class="row">
-                <div><label for="s-album">Album</label><input id="s-album" name="album" placeholder="Thriller"></div>
-                <div><label for="s-genre">Genre *</label><input id="s-genre" name="genre" required placeholder="Pop" list="genreList"></div>
-            </div>
-            <datalist id="genreList">
-                <option value="Pop"></option>
-                <option value="Folk"></option>
-                <option value="Anime"></option>
-                <option value="Soundtrack"></option>
-                <option value="Electronic"></option>
-            </datalist>
-            <div class="row">
-                <div><label for="s-audio">Audio file (MP3)</label><input id="s-audio" name="audio" type="file" accept="audio/*"></div>
-                <div><label for="s-cover">Cover image</label><input id="s-cover" name="cover" type="file" accept="image/*"></div>
-            </div>
-            <div class="row">
-                <div><label for="s-audioUrl">…or Audio URL</label><input id="s-audioUrl" name="audioUrl" placeholder="/record/song.mp3 or https://…"></div>
-                <div><label for="s-coverUrl">…or Cover art URL</label><input id="s-coverUrl" name="coverArtUrl" placeholder="/Image/Cover_photo/x.jpg or https://…"></div>
-            </div>
-            <div class="row">
-                <div><label for="s-duration">Duration (sec)</label><input id="s-duration" name="durationSec" type="number" min="0" placeholder="294"></div>
-                <div class="m" style="align-self:end">Files go to <span class="tag">uploads/audio</span> + <span class="tag">uploads/covers</span>.</div>
-            </div>
-            <p class="m" id="songFormMsg" role="alert"></p>
-            <div class="foot">
-                <a class="btn" href="#songs">Cancel</a>
-                <button class="btn p" type="submit" id="songSaveBtn">Save</button>
-            </div>
-        </form>
-    </div>
-
-    <!-- USER FORM (wired to real API by admin.js; mirrors Users table columns) -->
-    <div class="modal" id="user-form">
-        <a class="backdrop" href="#users" aria-label="Close"></a>
-        <form class="card" id="userForm">
-            <h2 id="userFormTitle">Add user</h2>
-            <input type="hidden" id="u-id" name="id">
-            <div class="row">
-                <div><label for="u-name">Full name *</label><input id="u-name" name="fullname" required placeholder="Sophia Carter"></div>
-                <div><label for="u-user">Username *</label><input id="u-user" name="username" required placeholder="sophia.carter"></div>
-            </div>
-            <div class="row">
-                <div><label for="u-phone">Phone number *</label><input id="u-phone" name="phonenumber" type="tel"
-                        pattern="[0-9+\-\s()]{8,15}" required placeholder="0123456781"></div>
-                <div><label for="u-mail">Email *</label><input id="u-mail" name="email" type="email" required placeholder="sophia.carter@example.com"></div>
-            </div>
-            <div class="row">
-                <div><label for="u-pass">Password * <span class="m">(leave blank when editing to keep current)</span></label><input id="u-pass" name="password" type="password"
-                        minlength="6" autocomplete="new-password" placeholder="UserDemo@$1"></div>
-                <div><label for="u-role">Role</label>
-                    <select id="u-role" name="role">
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
-                    </select>
-                </div>
-            </div>
-            <p class="m" id="userFormMsg" role="alert"></p>
-            <div class="foot">
-                <a class="btn" href="#users">Cancel</a>
-                <button class="btn p" type="submit" id="userSaveBtn">Save</button>
-            </div>
-        </form>
     </div>
 
     <script src="admin.js"></script>

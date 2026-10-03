@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Song details - music_Online Admin</title>
+    <link rel="stylesheet" href="admin.css">
+    <style>
+        .detail { display: grid; grid-template-columns: 280px 1fr; gap: 22px; align-items: start; }
+        .cov-big { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; background: var(--line); display: block; }
+        .kv { display: grid; grid-template-columns: 150px 1fr; gap: 8px 12px; margin: 14px 0; }
+        .kv dt { color: var(--mute); font-size: 13px; }
+        .kv dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+        .detail audio { width: 100%; max-width: none; height: 36px; }
+        .topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+        .topbar .spacer { flex: 1; }
+        @media (max-width: 720px) { .detail { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <aside>
+            <div class="logo">music<b>_</b>Online</div>
+            <nav>
+                <a href="Admin_dashbroad.html#songs">Songs</a>
+                <a href="Admin_dashbroad.html#users">Users</a>
+            </nav>
+            <a class="side-home" href="../Main.html">Main page</a>
+        </aside>
+        <main>
+            <div class="topbar">
+                <a class="btn" href="Admin_dashbroad.html#songs">Back to Songs</a>
+                <span class="spacer"></span>
+                <a class="btn" id="editLink" href="#">Edit</a>
+                <a class="btn d" id="deleteLink" href="#">Delete</a>
+            </div>
+            <section class="panel" style="display:block">
+                <h1 id="songTitle">Loading song...</h1>
+                <p class="sub" id="songSub">Fetching details from database.</p>
+                <div class="wrap" style="padding:22px">
+                    <div class="detail">
+                        <div><img class="cov-big" id="songCover" src="" alt="Cover art"></div>
+                        <div>
+                            <dl class="kv">
+                                <dt>Title</dt><dd id="f-title">-</dd>
+                                <dt>Artist</dt><dd id="f-artist">-</dd>
+                                <dt>Album</dt><dd id="f-album">-</dd>
+                                <dt>Genre</dt><dd><span class="tag" id="f-genre">-</span></dd>
+                                <dt>Duration</dt><dd id="f-duration">-</dd>
+                                <dt>Audio URL</dt><dd class="m" id="f-audioUrl">-</dd>
+                                <dt>Cover URL</dt><dd class="m" id="f-coverUrl">-</dd>
+                                <dt>Track ID</dt><dd class="m" id="f-id">-</dd>
+                                <dt>Created</dt><dd class="m" id="f-created">-</dd>
+                                <dt>Updated</dt><dd class="m" id="f-updated">-</dd>
+                            </dl>
+                            <audio id="songAudio" controls preload="none"></audio>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <script src="song-view.js"></script>
+</body>
+</html>

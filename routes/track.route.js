@@ -7,7 +7,15 @@ const { verifyAdmin } = require('../middleware/auth.middleware');
 router.get('/', trackController.getAllTracks);
 router.get('/genres', trackController.getGenres);
 router.get('/:id', trackController.getTrackById);
-router.put('/:id', verifyAdmin, trackController.updateTrack);
+router.put(
+  '/:id',
+  verifyAdmin,
+  upload.fields([
+    { name: 'audio', maxCount: 1 },
+    { name: 'cover', maxCount: 1 }
+  ]),
+  trackController.updateTrack
+);
 router.delete('/:id', verifyAdmin, trackController.deleteTrack);
 router.post(
   '/',
