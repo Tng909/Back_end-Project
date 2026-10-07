@@ -29,6 +29,10 @@ function showOk(msg) {
 const loginForm = document.getElementById('loginForm');
   if (loginForm) {
     const loginId = document.getElementById('loginIdentifier');
+    if (new URLSearchParams(window.location.search).get('registered') === '1') {
+      showOk('Verification email sent. Check your inbox and verify your account before logging in.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
     const verifyExistingSession = (async () => {
       const token = localStorage.getItem('token');
       if (!token) return false;
@@ -85,7 +89,37 @@ const loginForm = document.getElementById('loginForm');
           })
         });
         const data = await parseJsonSafe(res);
-        if (!res.ok) throw new Error(data.error || 'Login failed');
+        if (!res.ok) {
+          // Unverified login: offer one-click resend to the same email.
+          if (data.needVerify && data.email) {
+            showError(`${data.error} `);
+            let link = document.getElementById('resendLoginLink');
+            if (!link) {
+              link = document.createElement('a');
+              link.id = 'resendLoginLink';
+              link.href = '#';
+              link.className = 'alert-link ms-1';
+              link.textContent = 'Resend verify email';
+              alertBox.appendChild(link);
+              link.onclick = async (ev) => {
+                ev.preventDefault();
+                try {
+                  const r = await fetch(`${API_URL}/resend-verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: data.email })
+                  });
+                  const d = await parseJsonSafe(r);
+                  if (!r.ok) throw new Error(d.error || 'Resend failed.');
+                  showOk(d.message);
+                } catch (err) { showError(err.message); }
+              };
+            }
+          } else {
+            throw new Error(data.error || 'Login failed');
+          }
+          return;
+        }
         if (!data.token || !data.user || !['user', 'admin'].includes(data.user.role)) {
           throw new Error('Server returned an invalid login response.');
         }
@@ -99,7 +133,7 @@ const loginForm = document.getElementById('loginForm');
   });
 }
 
-// 2. REGISTER: create an active account (no email verification — SMTP removed).
+// 2. REGISTER: create account + trigger RS256 "Verify My Account" email to form email.
 const regForm = document.getElementById('regForm');
 if (regForm) {
   function regPayload() {
@@ -111,6 +145,16 @@ if (regForm) {
       password: document.getElementById('regPassword').value,
       confirmPassword: document.getElementById('regConfirmPassword').value
     };
+  }
+
+  let awaitingVerificationEmail = false;
+  function finishRegistration(message) {
+    awaitingVerificationEmail = false;
+    Array.from(regForm.elements).forEach((control) => { control.disabled = false; });
+    regForm.reset();
+    document.getElementById('resendBtn')?.classList.add('d-none');
+    showOk(message);
+    window.setTimeout(() => window.location.replace('login.html?registered=1'), 1200);
   }
 
   regForm.addEventListener('submit', async (e) => {
@@ -129,12 +173,44 @@ if (regForm) {
       });
       const data = await parseJsonSafe(res);
       if (!res.ok) throw new Error(data.error || 'Registration failed.');
-      showOk(data.message || 'Registration successful. You can now log in.');
-      regForm.reset();
+      if (data.emailSent === true) {
+        finishRegistration(data.message || 'Registration successful. Verification email sent.');
+        return;
+      }
+      showError((data.message || 'Registration successful, but the verification email was not sent.')
+        + ' Your form details are kept here. Retry sending after email service is available.');
+      // If mail failed (no SMTP), show resend so user can retry after sender is configured.
+      const resendBtn = document.getElementById('resendBtn');
+      if (resendBtn) {
+        awaitingVerificationEmail = true;
+        Array.from(regForm.elements).forEach((control) => {
+          if (control !== resendBtn) control.disabled = true;
+        });
+        resendBtn.classList.remove('d-none');
+        resendBtn.onclick = async () => {
+          try {
+            resendBtn.disabled = true;
+            resendBtn.textContent = 'Sending...';
+            const r = await fetch(`${API_URL}/resend-verify`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: payload.email })
+            });
+            const d = await parseJsonSafe(r);
+            if (!r.ok) throw new Error(d.error || 'Resend failed.');
+            finishRegistration(d.message || 'Verification email sent.');
+            resendBtn.classList.add('d-none');
+          } catch (err) { showError(err.message); }
+          finally {
+            resendBtn.disabled = false;
+            resendBtn.textContent = 'Resend verify email';
+          }
+        };
+      }
     } catch (err) {
       showError(err.message);
     } finally {
-      registerBtn.disabled = false;
+      registerBtn.disabled = awaitingVerificationEmail;
       registerBtn.textContent = 'Register';
     }
   });

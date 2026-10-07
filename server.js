@@ -7,10 +7,14 @@ const initUploadDirs = require('./config/initDirs');
 const trackRoutes = require('./routes/track.route');
 const authRoutes = require('./routes/auth.route');
 const seedAdmin = require('./config/seedAdmin');
+const { checkSmtpOnBoot } = require('./utils/sendEmail');
 const app = express();
 
 connectDB().then(() => seedAdmin());
 initUploadDirs();
+
+// Non-blocking: verifies SMTP, never crashes boot. Register/login work either way.
+checkSmtpOnBoot().catch((err) => console.warn('[Mail] SMTP check error (non-fatal):', err.message));
 
 app.use(cors());
 app.use(express.json());

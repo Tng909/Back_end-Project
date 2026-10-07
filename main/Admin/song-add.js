@@ -64,6 +64,8 @@ $('songAddForm').addEventListener('submit', async (e) => {
       fd.append('artist', $('s-artist').value.trim());
       fd.append('album', $('s-album').value.trim());
       fd.append('genre', $('s-genre').value.trim());
+      fd.append('producer', $('s-producer').value.trim());
+      fd.append('lyrics', $('s-lyrics').value.trim());
       const dur = $('s-duration').value;
       if (dur) fd.append('durationSec', dur);
       if (audioFile) fd.append('audio', audioFile);
@@ -82,6 +84,8 @@ $('songAddForm').addEventListener('submit', async (e) => {
           artist: $('s-artist').value.trim(),
           album: $('s-album').value.trim(),
           genre: $('s-genre').value.trim(),
+          producer: $('s-producer').value.trim(),
+          lyrics: $('s-lyrics').value.trim(),
           audioUrl: $('s-audioUrl').value.trim(),
           coverArtUrl: $('s-coverUrl').value.trim(),
           durationSec: Number($('s-duration').value) || undefined

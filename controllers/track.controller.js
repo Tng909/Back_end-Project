@@ -47,7 +47,7 @@ exports.getTrackById = async (req, res) => {
 
 exports.createTrack = async (req, res) => {
   try {
-    const { title, artist, album, genre, durationSec } = req.body;
+    const { title, artist, producer, lyrics, album, genre, durationSec } = req.body;
     
     const audioUrl = req.files?.audio ? `/uploads/audio/${req.files.audio[0].filename}` : req.body.audioUrl;
     const coverArtUrl = req.files?.cover ? `/uploads/covers/${req.files.cover[0].filename}` : req.body.coverArtUrl;
@@ -59,6 +59,8 @@ exports.createTrack = async (req, res) => {
     const track = new Track({
       title,
       artist,
+      producer,
+      lyrics,
       album,
       genre,
       durationSec,

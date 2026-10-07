@@ -15,6 +15,9 @@ uploads/avatars/*
 !uploads/covers/.gitkeep
 !uploads/avatars/.gitkeep
 
+# RSA private key for RS256 JWT signing — NEVER commit
+config/jwtPrivate.pem
+
 # Logs / OS
 *.log
 .DS_Store

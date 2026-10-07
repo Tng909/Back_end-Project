@@ -2,14 +2,26 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { verifyToken, verifyAdmin } = require('../middleware/auth.middleware');
+const { loadKeys } = require('../config/jwtKeys');
 const { resolveMailConfig } = require('../utils/sendEmail');
 const upload = require('../middleware/upload.middleware');
 
-// Public: register + login. Login is NEVER gated on email confirm.
+// Public: register + login. Register sends RS256 "Verify My Account" button mail.
 router.post('/register', authController.register);
 router.post('/confirm-email', authController.confirmEmail);
+router.get('/confirm-email', authController.confirmEmail); // allow direct link open / email-client prefetch
+router.get('/verify-email', authController.confirmEmail); // alias matching your sample
+router.post('/resend-verify', authController.resendVerify);
 router.post('/login', authController.login);
 router.post('/reset-password', authController.resetPassword);
+router.post('/test-email', verifyAdmin, authController.testEmail);
+
+// Public key for external services to verify RS256 tokens (safe to share).
+router.get('/public-key', (req, res) => {
+  const { publicKey } = loadKeys();
+  if (!publicKey) return res.status(500).json({ error: 'RS256 public key not configured.' });
+  res.type('text/plain').send(publicKey);
+});
 
 // Debug: sender status only (never leaks password). Helps diagnose 535.
 router.get('/mail-status', (req, res) => {

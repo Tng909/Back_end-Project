@@ -2,7 +2,8 @@ const User = require('../models/user');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { sendWelcomeEmail } = require('../utils/sendEmail');
+const { sendWelcomeEmail, sendTestEmail } = require('../utils/sendEmail');
+const { loadKeys } = require('../config/jwtKeys');
 
 exports.register = async (req, res) => {
     try {
@@ -31,36 +32,44 @@ exports.register = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Optional confirm token — informational only, login is NEVER gated on it.
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        const emailConfirmTokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+        // RS256 email-verification JWT (20m) for the USER's own targetEmail.
+        // Signed with RSA private key, verified with public key at GET /verify-email.
+        const { privateKey } = loadKeys();
+        if (!privateKey) return res.status(500).json({ error: 'RS256 private key not configured.' });
+        const targetEmail = email;
+        const emailVerificationToken = jwt.sign(
+            { email: targetEmail, type: 'email-verification' },
+            privateKey,
+            { algorithm: 'RS256', expiresIn: '20m' }
+        );
 
         const user = new User({
             fullName,
             username,
-            email,
+            email: targetEmail,
             password: hashedPassword,
             phoneNumber,
             role: 'user',
-            isVerified: true,
-            emailConfirmTokenHash,
-            emailConfirmTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000)
+            isVerified: false,
+            isEmailConfirmed: false
         });
 
         await user.save();
 
-        // Best-effort nodemailer email to the USER's own input address.
+        // Nodemailer "Verify My Account" button to targetEmail (user's input address).
         // Wrong SMTP creds (535) only warn in console — register still returns 201.
         const appUrl = String(process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
-        const confirmUrl = `${appUrl}/verify/verify-email.html?token=${rawToken}`;
-        const mail = await sendWelcomeEmail(email, confirmUrl);
+        const confirmUrl = `${appUrl}/verify/verify-email.html?token=${emailVerificationToken}`;
+        // Direct backend fallback (button can also point here):
+        // const confirmUrl = `${appUrl}/api/auth/verify-email?token=${emailVerificationToken}`;
+        const mail = await sendWelcomeEmail(targetEmail, confirmUrl);
 
         res.status(201).json({
             message: mail.sent
-                ? 'Registration successful. We sent a confirmation email — but you can log in right away.'
-                : 'Registration successful. You can now log in.',
+                ? `Registration successful. Verification email dispatched to ${targetEmail} — click Verify My Account within 20 minutes.`
+                : 'Registration successful. Confirmation email not delivered (sender not configured or SMTP rejected it).',
             emailSent: mail.sent,
-            ...(mail.sent ? {} : { emailNote: 'Confirmation email not delivered (sender not configured or SMTP rejected it). Login still works.' })
+            ...(mail.sent ? {} : { emailNote: 'Set MAIL_USER + MAIL_PASS in .env (Gmail App Password) to deliver mail.' })
         });
     } catch (err) {
         if (err.code === 11000) {
@@ -72,21 +81,44 @@ exports.register = async (req, res) => {
     }
 };
 
-// Optional confirm endpoint: marks isEmailConfirmed=true. Informational only.
+// Verify route: captures "Verify My Account" button click from email.
+// Token is RS256 JWT { email, type:'email-verification' }, 20m expiry.
 exports.confirmEmail = async (req, res) => {
     try {
         const token = String(req.body?.token || req.query?.token || '');
-        if (!/^[a-f0-9]{64}$/i.test(token)) {
-            return res.status(400).json({ error: 'Confirmation link is invalid or expired.' });
+        if (!token) {
+            return res.status(400).json({ error: 'Verification token is missing!' });
         }
-        const emailConfirmTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        const { publicKey } = loadKeys();
+        if (!publicKey) return res.status(500).json({ error: 'RS256 public key not configured.' });
+        let decoded;
+        try {
+            decoded = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
+        } catch {
+            return res.status(403).json({ error: 'Link expired or invalid. Please sign up again.' });
+        }
+        // Safety check: ensure it's an email verification token type
+        if (decoded.type !== 'email-verification' || !decoded.email) {
+            return res.status(400).json({ error: 'Invalid token context.' });
+        }
+        const verifiedEmail = String(decoded.email).trim().toLowerCase();
         const user = await User.findOneAndUpdate(
-            { emailConfirmTokenHash, emailConfirmTokenExpires: { $gt: new Date() } },
-            { $set: { isEmailConfirmed: true }, $unset: { emailConfirmTokenHash: 1, emailConfirmTokenExpires: 1 } },
+            { email: verifiedEmail },
+            { $set: { isVerified: true, isEmailConfirmed: true } },
             { new: true }
         );
-        if (!user) return res.status(400).json({ error: 'Confirmation link is invalid or expired.' });
-        res.json({ message: 'Email confirmed. Thanks! You can log in anytime.' });
+        if (!user) return res.status(404).json({ error: 'Account not found for this email.' });
+        // Browser direct open (button) gets friendly HTML, API callers get JSON
+        const wantsHtml = String(req.headers.accept || '').includes('text/html');
+        if (req.method === 'GET' && wantsHtml) {
+            return res.send(`
+      <div style="font-family: Arial, sans-serif; text-align: center; padding-top: 50px;">
+        <h1 style="color: #1DB954;">🎉 Verification Successful!</h1>
+        <p>Your email <strong>${verifiedEmail}</strong> has been successfully confirmed.</p>
+        <p>You can now close this tab and return to the music application to log in.</p>
+      </div>`);
+        }
+        res.json({ message: `🎉 Verification Successful! ${verifiedEmail} confirmed. You can now log in.` });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -133,12 +165,25 @@ exports.login = async (req, res) => {
             error: 'Invalid password.'
         });
 
+        // Gate login until email verify button clicked (except admins).
+        if (user.role !== 'admin' && !user.isEmailConfirmed) {
+            return res.status(403).json({
+                error: 'Please verify your email first. Check your inbox for the Verify My Account button (expires in 20 minutes).',
+                needVerify: true,
+                email: user.email
+            });
+        }
+
+        // RS256: sign with RSA PRIVATE key only. Public key verifies.
+        const { privateKey } = loadKeys();
+        if (!privateKey) return res.status(500).json({ error: 'RS256 private key not configured.' });
         const token = jwt.sign({
                 _id: user._id,
                 role: user.role,
                 username: user.username
             },
-            process.env.JWT_SECRET || 'secretkey', {
+            privateKey, {
+                algorithm: 'RS256',
                 expiresIn: '1d'
             }
         );
@@ -159,6 +204,52 @@ exports.login = async (req, res) => {
         res.status(500).json({
             error: err.message
         });
+    }
+};
+
+// Resend RS256 "Verify My Account" button to the register-form email.
+exports.resendVerify = async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({ error: 'Valid email required.' });
+        }
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ error: 'Account not found for this email.' });
+        if (user.isEmailConfirmed) return res.json({ message: 'Email already verified. You can log in.' });
+        const { privateKey } = loadKeys();
+        if (!privateKey) return res.status(500).json({ error: 'RS256 private key not configured.' });
+        const emailVerificationToken = jwt.sign(
+            { email, type: 'email-verification' },
+            privateKey,
+            { algorithm: 'RS256', expiresIn: '20m' }
+        );
+        const appUrl = String(process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+        const confirmUrl = `${appUrl}/verify/verify-email.html?token=${emailVerificationToken}`;
+        const mail = await sendWelcomeEmail(email, confirmUrl);
+        if (!mail.sent) return res.status(500).json({ error: `Could not send verify email: ${mail.reason}` });
+        res.json({ message: `Verification email re-sent to ${email} — click Verify My Account within 20 minutes.` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.testEmail = async (req, res) => {
+    try {
+        const { to } = req.body || {};
+        const result = await sendTestEmail(to);
+        res.json({
+            message: `Test email sent to ${String(to).trim().toLowerCase()}.`,
+            emailSent: true,
+            ...result
+        });
+    } catch (err) {
+        const status = err.code === 'INVALID_RECIPIENT'
+            ? 400
+            : err.code === 'MAIL_NOT_CONFIGURED'
+                ? 503
+                : 502;
+        res.status(status).json({ error: err.message || 'SMTP test email failed.' });
     }
 };
 

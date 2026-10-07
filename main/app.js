@@ -3,6 +3,10 @@ const API_URL = 'http://localhost:3000/api/tracks';
 let tracks = [];
 let currIdx = 0;
 let isPlaying = false;
+let isShuffleEnabled = false;
+let isRepeatEnabled = false;
+let shuffleOrder = [];
+let shufflePosition = 0;
 const audio = new Audio();
 
 const trackGrid = document.getElementById('trackGrid');
@@ -13,11 +17,15 @@ const recommendGrid = document.getElementById('recommendGrid');
 const popularHint = document.getElementById('popularHint');
 const recommendReason = document.getElementById('recommendReason');
 const searchInput = document.getElementById('searchInput');
+const searchContainer = document.querySelector('.search-container');
+const searchDropdown = document.getElementById('searchDropdown');
 const playBtn = document.getElementById('playBtn');
 const prevBtn = document.getElementById('prevBtn');
 const nextBtn = document.getElementById('nextBtn');
 const prevSongBtn = document.getElementById('prevSongBtn');
 const nextSongBtn = document.getElementById('nextSongBtn');
+const shuffleBtn = document.getElementById('shuffleBtn');
+const repeatBtn = document.getElementById('repeatBtn');
 const seekSlider = document.getElementById('seekSlider');
 const volumeSlider = document.getElementById('volumeSlider');
 const playerCover = document.getElementById('playerCover');
@@ -26,6 +34,36 @@ const playerArtist = document.getElementById('playerArtist');
 const currTime = document.getElementById('currTime');
 const totalTime = document.getElementById('totalTime');
 const authControls = document.getElementById('authControls');
+const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+const mobileMenu = document.getElementById('mobileMenu');
+
+function setMobileMenuOpen(open) {
+  if (!mobileMenuToggle || !mobileMenu) return;
+  mobileMenu.classList.toggle('d-none', !open);
+  mobileMenuToggle.setAttribute('aria-expanded', String(open));
+  mobileMenuToggle.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+  const icon = mobileMenuToggle.querySelector('i');
+  if (icon) icon.className = `fa-solid ${open ? 'fa-xmark' : 'fa-bars'}`;
+}
+
+mobileMenuToggle?.addEventListener('click', () => {
+  setMobileMenuOpen(mobileMenuToggle.getAttribute('aria-expanded') !== 'true');
+});
+
+mobileMenu?.addEventListener('click', (event) => {
+  if (event.target.closest('a')) setMobileMenuOpen(false);
+});
+
+document.addEventListener('click', (event) => {
+  if (mobileMenu && !mobileMenu.classList.contains('d-none')
+    && !mobileMenu.contains(event.target) && !mobileMenuToggle?.contains(event.target)) {
+    setMobileMenuOpen(false);
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') setMobileMenuOpen(false);
+});
 
 function getStoredUser() {
   const user = localStorage.getItem('user');
@@ -219,6 +257,59 @@ function pushHistory(key) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
 }
 
+const SEARCH_HISTORY_KEY = 'recentSearchTracks';
+
+function getRecentSearchTracks() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY));
+    return Array.isArray(stored) ? stored.filter((key) => typeof key === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentSearchTrack(track) {
+  const key = String(getTrackKey(track));
+  const recent = [key, ...getRecentSearchTracks().filter((recentKey) => recentKey !== key)].slice(0, 8);
+  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(recent));
+}
+
+function renderSearchDropdown(results = null) {
+  if (!searchDropdown || !searchInput) return;
+  const showingResults = results !== null;
+  const keys = showingResults ? results.map(getTrackKey) : getRecentSearchTracks();
+  const visibleTracks = keys
+    .map((key) => tracks.find((track) => String(getTrackKey(track)) === String(key)))
+    .filter(Boolean)
+    .slice(0, 8);
+  const heading = showingResults ? 'Tracks' : 'Recently searched';
+  const clearButton = !showingResults && visibleTracks.length
+    ? '<button type="button" class="btn btn-sm btn-link text-info p-0" data-clear-search-history>Clear</button>'
+    : '';
+  const items = visibleTracks.length
+    ? visibleTracks.map((track) => `
+      <button type="button" class="search-dropdown-item" role="option" data-track-key="${escapeHtml(getTrackKey(track))}">
+        <span class="text-truncate w-100">${escapeHtml(track.title || 'Untitled')}</span>
+        <small class="text-secondary text-truncate w-100">${escapeHtml(track.artist || 'Unknown artist')}</small>
+      </button>
+    `).join('')
+    : `<div class="search-dropdown-empty">${showingResults ? 'No matching tracks found.' : 'Your latest searched tracks will appear here.'}</div>`;
+
+  searchDropdown.innerHTML = `
+    <div class="search-dropdown-heading">
+      <span>${heading}</span>
+      ${clearButton}
+    </div>
+    ${items}
+  `;
+}
+
+function setSearchDropdownOpen(open) {
+  if (!searchDropdown || !searchInput) return;
+  searchDropdown.classList.toggle('d-none', !open);
+  searchInput.setAttribute('aria-expanded', String(open));
+}
+
 function popularityScore(track) {
   const stats = getStats();
   const s = stats[getTrackKey(track)] || { plays: 0, searches: 0 };
@@ -336,9 +427,10 @@ function resolveUrl(url) {
   return encodeURI(url);
 }
 
-function loadTrack(idx) {
+function loadTrack(idx, keepShufflePosition = false) {
   if (!tracks[idx]) return;
   currIdx = idx;
+  if (isShuffleEnabled && !keepShufflePosition) resetShuffleOrder(idx);
   const t = tracks[currIdx];
   audio.src = resolveUrl(t.audioUrl);
   playerCover.src = resolveUrl(t.coverArtUrl);
@@ -346,8 +438,8 @@ function loadTrack(idx) {
   playerArtist.textContent = t.artist;
 }
 
-function playTrack(idx) {
-  if (idx !== undefined) loadTrack(idx);
+function playTrack(idx, keepShufflePosition = false) {
+  if (idx !== undefined) loadTrack(idx, keepShufflePosition);
   const current = tracks[currIdx];
   if (current) {
     bumpStat(getTrackKey(current), 'plays', 1);
@@ -357,6 +449,52 @@ function playTrack(idx) {
   audio.play().catch(() => {});
   isPlaying = true;
   playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+}
+
+function resetShuffleOrder(startIdx = currIdx) {
+  const remaining = tracks
+    .map((_, index) => index)
+    .filter((index) => index !== startIdx);
+  for (let i = remaining.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [remaining[i], remaining[j]] = [remaining[j], remaining[i]];
+  }
+  shuffleOrder = tracks.length ? [startIdx, ...remaining] : [];
+  shufflePosition = 0;
+}
+
+function playAdjacentTrack(direction) {
+  if (!tracks.length) return;
+  let nextIndex;
+  if (isShuffleEnabled) {
+    if (!shuffleOrder.length) resetShuffleOrder(currIdx);
+    shufflePosition = (shufflePosition + direction + shuffleOrder.length) % shuffleOrder.length;
+    nextIndex = shuffleOrder[shufflePosition];
+  } else {
+    nextIndex = (currIdx + direction + tracks.length) % tracks.length;
+  }
+  playTrack(nextIndex, isShuffleEnabled);
+}
+
+function setShuffleEnabled(enabled) {
+  isShuffleEnabled = enabled;
+  if (enabled) resetShuffleOrder(currIdx);
+  else {
+    shuffleOrder = [];
+    shufflePosition = 0;
+  }
+  shuffleBtn?.classList.toggle('is-active', enabled);
+  shuffleBtn?.setAttribute('aria-pressed', String(enabled));
+  shuffleBtn?.setAttribute('aria-label', enabled ? 'Shuffle on' : 'Shuffle off');
+  shuffleBtn?.setAttribute('title', enabled ? 'Shuffle on' : 'Shuffle off');
+}
+
+function setRepeatEnabled(enabled) {
+  isRepeatEnabled = enabled;
+  repeatBtn?.classList.toggle('is-active', enabled);
+  repeatBtn?.setAttribute('aria-pressed', String(enabled));
+  repeatBtn?.setAttribute('aria-label', enabled ? 'Repeat on' : 'Repeat off');
+  repeatBtn?.setAttribute('title', enabled ? 'Repeat on' : 'Repeat off');
 }
 
 function pauseTrack() {
@@ -370,34 +508,41 @@ playBtn.addEventListener('click', () => {
 });
 
 prevBtn.addEventListener('click', () => {
-  if (!tracks.length) return;
-  currIdx = (currIdx - 1 + tracks.length) % tracks.length;
-  playTrack(currIdx);
+  playAdjacentTrack(-1);
 });
 
 nextBtn.addEventListener('click', () => {
-  if (!tracks.length) return;
-  currIdx = (currIdx + 1) % tracks.length;
-  playTrack(currIdx);
+  playAdjacentTrack(1);
 });
 
 // Previous song button (next to backward button)
 if (prevSongBtn) {
   prevSongBtn.addEventListener('click', () => {
-    if (!tracks.length) return;
-    currIdx = (currIdx - 1 + tracks.length) % tracks.length;
-    playTrack(currIdx);
+    playAdjacentTrack(-1);
   });
 }
 
 // Next song button (next to forward button)
 if (nextSongBtn) {
   nextSongBtn.addEventListener('click', () => {
-    if (!tracks.length) return;
-    currIdx = (currIdx + 1) % tracks.length;
-    playTrack(currIdx);
+    playAdjacentTrack(1);
   });
 }
+
+shuffleBtn?.addEventListener('click', () => setShuffleEnabled(!isShuffleEnabled));
+repeatBtn?.addEventListener('click', () => setRepeatEnabled(!isRepeatEnabled));
+
+audio.addEventListener('ended', () => {
+  if (!isRepeatEnabled) {
+    playAdjacentTrack(1);
+    return;
+  }
+  audio.currentTime = 0;
+  audio.play().catch((err) => {
+    console.error('Could not repeat the current track:', err);
+    pauseTrack();
+  });
+});
 
 audio.addEventListener('timeupdate', () => {
   if (audio.duration) {
@@ -415,15 +560,70 @@ volumeSlider.addEventListener('input', () => {
   audio.volume = volumeSlider.value / 100;
 });
 
-searchInput.addEventListener('input', (e) => {
-  const q = e.target.value.toLowerCase();
-  const filtered = tracks.filter(t =>
-    t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)
-  );
-  // count search hits toward popularity
-  if (q.trim()) filtered.forEach((t) => bumpStat(getTrackKey(t), 'searches', 1));
-  renderTracks(filtered, trackGrid);
-  refreshSections();
+function findSearchMatches(query) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return [];
+  return tracks
+    .filter((track) => `${track.title || ''} ${track.artist || ''}`.toLowerCase().includes(normalized))
+    .sort((a, b) => {
+      const aStarts = `${a.title || ''} ${a.artist || ''}`.toLowerCase().startsWith(normalized);
+      const bStarts = `${b.title || ''} ${b.artist || ''}`.toLowerCase().startsWith(normalized);
+      return Number(bStarts) - Number(aStarts) || a.title.localeCompare(b.title);
+    })
+    .slice(0, 8);
+}
+
+function openTrackDetail(track) {
+  if (!track?._id) return;
+  saveRecentSearchTrack(track);
+  bumpStat(getTrackKey(track), 'searches', 1);
+  window.location.href = `track.html?id=${encodeURIComponent(track._id)}`;
+}
+
+searchInput.addEventListener('focus', () => {
+  renderSearchDropdown(searchInput.value.trim() ? findSearchMatches(searchInput.value) : null);
+  setSearchDropdownOpen(true);
+});
+
+searchInput.addEventListener('click', () => {
+  renderSearchDropdown(searchInput.value.trim() ? findSearchMatches(searchInput.value) : null);
+  setSearchDropdownOpen(true);
+});
+
+searchInput.addEventListener('input', () => {
+  renderSearchDropdown(searchInput.value.trim() ? findSearchMatches(searchInput.value) : null);
+  setSearchDropdownOpen(true);
+});
+
+searchInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    setSearchDropdownOpen(false);
+    searchInput.blur();
+  } else if (event.key === 'Enter') {
+    const firstMatch = findSearchMatches(searchInput.value)[0];
+    if (firstMatch) openTrackDetail(firstMatch);
+  }
+});
+
+if (searchDropdown) {
+  searchDropdown.addEventListener('mousedown', (event) => event.preventDefault());
+  searchDropdown.addEventListener('click', (event) => {
+    const clearButton = event.target.closest('[data-clear-search-history]');
+    if (clearButton) {
+      localStorage.removeItem(SEARCH_HISTORY_KEY);
+      renderSearchDropdown();
+      return;
+    }
+    const item = event.target.closest('[data-track-key]');
+    if (!item) return;
+    const selected = tracks.find((track) => String(getTrackKey(track)) === item.dataset.trackKey);
+    if (!selected) return;
+    openTrackDetail(selected);
+  });
+}
+
+document.addEventListener('click', (event) => {
+  if (searchContainer && !searchContainer.contains(event.target)) setSearchDropdownOpen(false);
 });
 
 function fmtTime(sec) {

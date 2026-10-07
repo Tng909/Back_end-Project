@@ -14,39 +14,48 @@
   <div class="container-fluid flex-grow-1 overflow-hidden p-0">
     <div class="row h-100 g-0">
       
-      <!-- Sidebar (desktop only — hidden on mobile, replaced by mobile-topbar below) -->
+      <!-- Desktop sidebar -->
       <aside class="col-md-3 col-lg-2 bg-dark p-3 d-none d-md-flex flex-column gap-4 border-end border-secondary border-opacity-25">
         <div class="d-flex align-items-center gap-2 fs-4 fw-bold text-success">
           <img src="Image/Logo.jpg" alt="Logo" class="app-logo">
           <span class="text-white">BOX MUSIC</span>
         </div>
         <nav class="nav nav-pills flex-column gap-2">
-          <a class="nav-link active bg-success text-white fw-bold d-flex align-items-center gap-3" href="#">
+          <a class="nav-link active bg-success text-white fw-bold d-flex align-items-center gap-3" href="#home">
             <i class="fa-solid fa-house"></i> Home
           </a>
-          <a class="nav-link text-secondary fw-semibold d-flex align-items-center gap-3" href="#">
-            <i class="fa-solid fa-magnifying-glass"></i> Search
-          </a>
-          <a class="nav-link text-secondary fw-semibold d-flex align-items-center gap-3" href="#">
+          <a class="nav-link text-secondary fw-semibold d-flex align-items-center gap-3" href="#trackGrid">
             <i class="fa-solid fa-book"></i> Your Library
           </a>
         </nav>
       </aside>
 
       <!-- Main Content -->
-      <main class="col-12 col-md-9 col-lg-10 p-3 p-md-4 overflow-auto bg-gradient-dark app-main">
+      <main id="home" class="col-12 col-md-9 col-lg-10 p-3 p-md-4 overflow-auto bg-gradient-dark app-main">
         <!-- Mobile top bar (logo + auth) — only visible on <md -->
         <div class="d-flex d-md-none align-items-center justify-content-between gap-2 mb-3 mobile-topbar">
-          <div class="d-flex align-items-center gap-2 fw-bold">
+          <div class="d-flex align-items-center gap-2 fw-bold mobile-brand">
+            <button id="mobileMenuToggle" class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobileMenu">
+              <i class="fa-solid fa-bars" aria-hidden="true"></i>
+            </button>
             <img src="Image/Logo.jpg" alt="Logo" class="app-logo app-logo-sm">
             <span class="text-white small">BOX MUSIC</span>
           </div>
           <div class="mobile-auth d-flex align-items-center gap-2"></div>
+          <nav id="mobileMenu" class="mobile-menu d-none" aria-label="Mobile navigation">
+            <a href="#home" class="mobile-menu-link"><i class="fa-solid fa-house"></i> Home</a>
+            <a href="#trackGrid" class="mobile-menu-link"><i class="fa-solid fa-book"></i> Your Library</a>
+          </nav>
         </div>
         <div class="d-flex align-items-center justify-content-between gap-3 mb-4 main-toolbar flex-wrap">
-          <div class="input-group rounded-pill overflow-hidden style-search" style="max-width: 350px;">
-            <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
-            <input type="text" id="searchInput" class="form-control bg-dark border-0 text-white shadow-none" placeholder="What do you want to play?">
+          <div class="search-container style-search">
+            <div class="input-group rounded-pill overflow-hidden">
+              <span class="input-group-text bg-dark border-0 text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+              <input type="text" id="searchInput" class="form-control bg-dark border-0 text-white shadow-none"
+                placeholder="Search tracks" role="combobox" aria-autocomplete="list"
+                aria-controls="searchDropdown" aria-expanded="false" autocomplete="off">
+            </div>
+            <div id="searchDropdown" class="search-dropdown d-none" role="listbox" aria-label="Recent searches"></div>
           </div>
           <div id="authControls" class="d-flex align-items-center gap-2">
             <a href="verify/register.html" class="btn btn-outline-light rounded-pill fw-semibold">Register</a>
@@ -100,23 +109,28 @@
     <!-- Player Controls -->
     <div class="d-flex flex-column align-items-center gap-1 player-controls" style="width: 50%; max-width: 600px;">
       <div class="d-flex align-items-center gap-3 player-buttons">
+        <button id="shuffleBtn" title="Shuffle off" aria-label="Shuffle off" aria-pressed="false" class="btn btn-link text-secondary p-0 border-0 player-mode-btn">
+          <i class="fa-solid fa-shuffle"></i>
+        </button>
         <button id="prevSongBtn" title="Previous song" class="btn btn-link text-secondary p-0 border-0 player-extra"><i class="fa-solid fa-backward fs-5"></i></button>
         <button id="prevBtn" title="Step backward" class="btn btn-link text-secondary p-0 border-0"><i class="fa-solid fa-backward-step fs-5"></i></button>
         <button id="playBtn" class="btn btn-light rounded-circle p-0 d-flex align-items-center justify-content-center player-play" style="width: 36px; height: 36px;"><i class="fa-solid fa-play text-dark"></i></button>
         <button id="nextBtn" title="Step forward" class="btn btn-link text-secondary p-0 border-0"><i class="fa-solid fa-forward-step fs-5"></i></button>
         <button id="nextSongBtn" title="Next song" class="btn btn-link text-secondary p-0 border-0 player-extra"><i class="fa-solid fa-forward fs-5"></i></button>
+        <button id="repeatBtn" title="Repeat off" aria-label="Repeat off" aria-pressed="false" class="btn btn-link text-secondary p-0 border-0 player-mode-btn">
+          <i class="fa-solid fa-repeat"></i>
+        </button>
+      </div>
+      <!-- Volume stays at the right on desktop, and moves above the seek bar on tablets. -->
+      <div class="d-flex align-items-center gap-2 justify-content-end text-secondary player-volume">
+        <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+        <input type="range" class="form-range style-range" id="volumeSlider" value="80" min="0" max="100" aria-label="Volume">
       </div>
       <div class="d-flex align-items-center gap-2 w-100 text-secondary style-subtext player-seek">
         <span id="currTime">0:00</span>
-        <input type="range" class="form-range flex-grow-1 style-range" id="seekSlider" value="0" min="0" max="100">
+        <input type="range" class="form-range flex-grow-1 style-range" id="seekSlider" value="0" min="0" max="100" aria-label="Track progress">
         <span id="totalTime">0:00</span>
       </div>
-    </div>
-
-    <!-- Volume -->
-    <div class="d-flex align-items-center gap-2 justify-content-end text-secondary player-volume" style="width: 25%;">
-      <i class="fa-solid fa-volume-high"></i>
-      <input type="range" class="form-range style-range" id="volumeSlider" value="80" min="0" max="100" style="max-width: 100px;">
     </div>
 
   </footer>

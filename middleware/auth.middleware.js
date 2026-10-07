@@ -1,17 +1,20 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/user');
+const { loadKeys } = require('../config/jwtKeys');
 
-// Any route using this only runs AFTER login, and login itself does
-// bcrypt.compare(password, user.passwordHash) — seeded admin password is
-// stored hashed, so the admin path is bcrypt-protected at the credential check.
+// RS256 public-use: verify with PUBLIC key only (safe to share).
+// Private key NEVER leaves auth server — it only signs at login.
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Access denied. No token provided.' });
 
   const token = authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Access denied. Malformed token.' });
   try {
-    const verified = jwt.verify(token, process.env.JWT_SECRET || 'secretkey');
+    const { publicKey } = loadKeys();
+    if (!publicKey) return res.status(500).json({ error: 'RS256 public key not configured.' });
+    const verified = jwt.verify(token, publicKey, { algorithms: ['RS256'] });
     req.user = verified;
     next();
   } catch (err) {
