@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "seed": "node config/seed.js",
     "seed:users": "node config/seedUsers.js",
+    "seed:playlists": "node config/seedPlaylists.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

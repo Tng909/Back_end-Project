@@ -1,14 +1,12 @@
 const trackId = new URLSearchParams(window.location.search).get('id');
-const audio = document.getElementById('detailAudio');
 const playButton = document.getElementById('detailPlayButton');
-const seek = document.getElementById('detailSeek');
-const currentTime = document.getElementById('detailCurrentTime');
-const duration = document.getElementById('detailDuration');
 const lyricsContainer = document.getElementById('detailLyrics');
 const lyricsHint = document.getElementById('lyricsHint');
+// The <audio> element and player controls live in the shared player (player.js).
+const audio = window.MusicPlayer ? window.MusicPlayer.audio : null;
+let currentTrack = null;
 let lyricLines = [];
 let activeLyricIndex = -1;
-let isSeeking = false;
 
 function escapeHtml(value) {
   return String(value || '').replace(/[&<>"']/g, (character) => ({
@@ -23,13 +21,6 @@ function escapeHtml(value) {
 function resolveMediaUrl(value) {
   if (!value) return '';
   return /^https?:\/\//i.test(value) ? value : encodeURI(value);
-}
-
-function formatTime(seconds) {
-  const safeSeconds = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
-  const mins = Math.floor(safeSeconds / 60);
-  const secs = Math.floor(safeSeconds % 60);
-  return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
 function parseLyrics(lyrics) {
@@ -104,57 +95,49 @@ async function loadTrack() {
   document.getElementById('detailProducer').textContent = track.producer || 'Not provided';
   document.getElementById('detailAlbum').textContent = track.album || 'Not provided';
   document.getElementById('detailGenre').textContent = track.genre || 'Not provided';
-  audio.src = resolveMediaUrl(track.audioUrl);
+  currentTrack = track;
   renderLyrics(track.lyrics);
   loading.classList.add('d-none');
   error.classList.add('d-none');
   detail.classList.remove('d-none');
+
+  // Hand this track to the shared player and start playing it.
+  if (window.MusicPlayer) {
+    window.MusicPlayer.setQueue([track], 0, true);
+  }
 }
 
-playButton.addEventListener('click', async () => {
-  if (audio.paused) {
-    try {
-      await audio.play();
-    } catch (error) {
-      document.getElementById('trackError').textContent = `Could not play this track: ${error.message}`;
-      document.getElementById('trackError').classList.remove('d-none');
-    }
-  } else {
-    audio.pause();
+// "Play track" toggles the shared player for this track.
+playButton.addEventListener('click', () => {
+  const MP = window.MusicPlayer;
+  if (!MP) return;
+  const current = MP.current();
+  if (current && current._id === trackId) {
+    MP.toggle();
+  } else if (currentTrack) {
+    MP.setQueue([currentTrack], 0, true);
   }
 });
 
-audio.addEventListener('play', () => {
-  playButton.innerHTML = '<i class="fa-solid fa-pause me-2"></i>Pause track';
-});
-audio.addEventListener('pause', () => {
-  playButton.innerHTML = '<i class="fa-solid fa-play me-2"></i>Play track';
-});
-audio.addEventListener('loadedmetadata', () => {
-  duration.textContent = formatTime(audio.duration);
-});
-audio.addEventListener('timeupdate', () => {
-  currentTime.textContent = formatTime(audio.currentTime);
-  if (!isSeeking && Number.isFinite(audio.duration) && audio.duration > 0) {
-    seek.value = String(Math.round((audio.currentTime / audio.duration) * 1000));
-  }
-  updateActiveLyric();
-});
-seek.addEventListener('input', () => {
-  isSeeking = true;
-  if (Number.isFinite(audio.duration) && audio.duration > 0) {
-    audio.currentTime = (Number(seek.value) / 1000) * audio.duration;
-  }
-});
-seek.addEventListener('change', () => {
-  isSeeking = false;
-  updateActiveLyric();
-});
-audio.addEventListener('error', () => {
-  const error = document.getElementById('trackError');
-  error.textContent = 'The audio file could not be loaded. Check the track audio URL.';
-  error.classList.remove('d-none');
-});
+// Keep the page's Play/Pause label in sync with the shared player.
+if (window.MusicPlayer && audio) {
+  window.MusicPlayer.on('play', (t) => {
+    if (t && t._id === trackId) playButton.innerHTML = '<i class="fa-solid fa-pause me-2"></i>Pause track';
+  });
+  window.MusicPlayer.on('pause', (t) => {
+    if (!t || t._id === trackId) playButton.innerHTML = '<i class="fa-solid fa-play me-2"></i>Play track';
+  });
+}
+
+// Lyrics follow the shared player's playback clock.
+if (audio) {
+  audio.addEventListener('timeupdate', updateActiveLyric);
+  audio.addEventListener('error', () => {
+    const error = document.getElementById('trackError');
+    error.textContent = 'The audio file could not be loaded. Check the track audio URL.';
+    error.classList.remove('d-none');
+  });
+}
 
 loadTrack().catch((error) => {
   document.getElementById('trackLoading').classList.add('d-none');
