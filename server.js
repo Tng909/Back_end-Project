@@ -6,6 +6,8 @@ const connectDB = require('./config/db');
 const initUploadDirs = require('./config/initDirs');
 const trackRoutes = require('./routes/track.route');
 const authRoutes = require('./routes/auth.route');
+const aiRoutes = require('./routes/ai.route');
+const playlistRoutes = require('./routes/playlist.route');
 const seedAdmin = require('./config/seedAdmin');
 const { checkSmtpOnBoot } = require('./utils/sendEmail');
 const app = express();
@@ -20,6 +22,8 @@ app.use(cors());
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/tracks', trackRoutes);
+app.use('/api/playlists', playlistRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Helper: trả JSON cho fetch()/API, trả trang HTML cho trình duyệt vào URL web.
 // (Tránh lỗi frontend "Unexpected token '<'" khi gọi API, và cho người dùng
