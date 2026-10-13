@@ -86,6 +86,32 @@
   max-width: 420px;
 }
 
+/* Auth alert/notice banners (login + register). The dark theme keeps
+   Bootstrap's alert text readable and the neon accent on the info banner. */
+.auth-card .alert {
+  border-width: 1px;
+  border-radius: 10px;
+  line-height: 1.45;
+}
+.auth-card .alert-info {
+  background: rgba(61, 165, 255, 0.14);
+  border-color: rgba(61, 165, 255, 0.45);
+  color: #dff1ff;
+}
+.auth-card .alert-info b {
+  color: var(--neon-cyan);
+}
+.auth-card .alert-danger {
+  background: rgba(220, 53, 69, 0.16);
+  border-color: rgba(220, 53, 69, 0.5);
+  color: #ffd7db;
+}
+.auth-card .alert-success {
+  background: rgba(25, 135, 84, 0.16);
+  border-color: rgba(25, 135, 84, 0.5);
+  color: #d3f5e3;
+}
+
 /* ============================================
    YOUR LIBRARY — playlist card
    ============================================ */
@@ -98,11 +124,12 @@
 /* --- Your Library dropdown --- */
 .library-dropdown { position: relative; }
 .library-menu {
-  min-width: 320px;
-  max-width: 440px;
-  width: max-content;
-  /* Bootstrap caps dropdown-menus at ~280px — override so the whole
-     list (name + description + track badges) is easy to read. */
+  /* Match the narrow sidebar instead of stretching to ~440px. The name +
+     description stack on top and the track badges wrap onto their own
+     flex line, so nothing gets squeezed sideways. */
+  min-width: 100%;
+  max-width: min(340px, 92vw);
+  width: 100%;
   max-height: 70vh;
   overflow-y: auto;
   overflow-x: hidden;
@@ -221,6 +248,12 @@
 }
 .create-album-btn .fa-circle-plus {
   font-size: 15px;
+}
+.create-album-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px 4px;
 }
 
 .form-control:focus {
@@ -471,42 +504,17 @@ body {
 .app-shell-row.rail-active .left-scroll-rail,
 .app-main.rail-active .left-scroll-rail,
 .app-main-wrap.rail-active .left-scroll-rail,
+.left-scroll-rail.rail-active,
 .left-scroll-rail.dragging {
   opacity: 1;
 }
 
-/* Desktop (mouse) devices: keep the rail + arrows always visible —
-   hover-friendly scroll controls for Windows / PC users.
-   Desktop uses NATURAL page scroll (body scrolls, footer sticks to the
-   viewport bottom, rail is viewport-fixed). This is bulletproof: no nested
-   flex-scroll container to break the mouse wheel. */
+/* Desktop (mouse) devices: keep the fixed app-shell so the footer stays
+   frozen at the bottom (it is the last flex child of the locked body) and
+   <main> scrolls internally. The custom right-edge rail is the visible
+   scroll cue (wired in app.js: drag the thumb, or use the up/down arrows). */
 @media (min-width: 992px) and (hover: hover) and (pointer: fine) {
-  body.app-shell {
-    overflow-y: auto !important;
-    overflow-x: hidden;
-    height: auto;
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
-  body.app-shell .app-shell-body,
-  body.app-shell .app-shell-row,
-  body.app-shell .app-main-wrap,
-  body.app-shell .app-main {
-    height: auto;
-    min-height: 0;
-    overflow: visible;
-  }
-  body.app-shell .player-bar {
-    position: sticky;
-    bottom: 0;
-    z-index: 30;
-  }
   .left-scroll-rail {
-    position: fixed;
-    top: 0;
-    bottom: 104px; /* clear the sticky player */
-    right: 0;
-    width: 30px;
     opacity: 1;
   }
   .left-scroll-rail:hover .left-scroll-thumb {
@@ -751,10 +759,25 @@ body {
   flex-wrap: nowrap;
 }
 
+.player-track {
+  flex: 0 0 25%;
+  min-width: 0;
+}
+
 .player-track,
 .player-controls,
 .player-volume {
   min-width: 0;
+}
+
+/* Center the transport buttons + progress bar as the hero of the footer.
+   Left = now playing, center = controls (flex:1, centered), right = volume. */
+.player-controls {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  max-width: 640px;
+  margin: 0 auto;
+  align-items: center;
 }
 
 .player-meta {
@@ -763,11 +786,12 @@ body {
 }
 
 .player-volume {
-  position: absolute;
-  top: 50%;
-  right: 3%;
-  width: 25%;
-  transform: translateY(-50%);
+  position: static;
+  flex: 0 0 auto;
+  width: 20%;
+  min-width: 120px;
+  justify-content: flex-end !important;
+  transform: none;
 }
 
 .player-volume .form-range {
@@ -806,23 +830,23 @@ body {
     right: 10px;
   }
   .player-track {
-    width: 32% !important;
+    flex: 0 0 32% !important;
   }
 
   .player-controls {
-    width: 68% !important;
+    flex: 1 1 auto !important;
+    width: auto !important;
     max-width: none !important;
     min-width: 0;
-    flex-direction: row !important;
-    flex-wrap: wrap;
-    align-content: center;
+    flex-direction: column !important;
+    align-items: center;
     column-gap: 8px !important;
     row-gap: 2px !important;
   }
 
   .player-buttons {
-    width: auto;
-    flex: 1 1 auto;
+    width: 100%;
+    flex: 0 0 auto;
     min-width: 0;
     justify-content: center;
     flex-wrap: nowrap;
@@ -869,13 +893,16 @@ body {
 
 /* Mobile phones */
 @media (max-width: 767.98px) {
-  body {
+  /* Lock the scroll ONLY on the fixed app-shell pages (Home / album). The
+     track-detail page has no .app-shell — it must keep normal document
+     scroll so the user can reach and scroll up to the Lyrics section. */
+  body.app-shell {
     height: 100vh;
     height: 100dvh;
     overflow: hidden !important;
   }
 
-  body > .container-fluid {
+  body.app-shell > .container-fluid {
     min-height: 0;
   }
 

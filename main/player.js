@@ -67,7 +67,7 @@
 
   const BAR_HTML = `
     <!-- Now Playing -->
-    <div class="d-flex align-items-center gap-3 player-track" style="width: 25%;">
+    <div class="d-flex align-items-center gap-3 player-track">
       <img id="playerCover" src="https://picsum.photos/seed/placeholder/60/60" class="rounded player-cover" width="56" height="56" alt="Cover">
       <div class="text-truncate player-meta">
         <div id="playerTitle" class="fw-semibold text-truncate small">Select Track</div>
@@ -75,8 +75,8 @@
       </div>
     </div>
 
-    <!-- Player Controls -->
-    <div class="d-flex flex-column align-items-center gap-1 player-controls" style="width: 50%; max-width: 600px;">
+    <!-- Player Controls (centered) -->
+    <div class="d-flex flex-column align-items-center gap-1 player-controls">
       <div class="d-flex align-items-center gap-3 player-buttons">
         <button id="shuffleBtn" title="Shuffle off" aria-label="Shuffle off" aria-pressed="false" class="btn btn-link text-secondary p-0 border-0 player-mode-btn"><i class="fa-solid fa-shuffle"></i></button>
         <button id="prevSongBtn" title="Previous song" class="btn btn-link text-secondary p-0 border-0 player-extra"><i class="fa-solid fa-backward fs-5"></i></button>
@@ -86,15 +86,17 @@
         <button id="nextSongBtn" title="Next song" class="btn btn-link text-secondary p-0 border-0 player-extra"><i class="fa-solid fa-forward fs-5"></i></button>
         <button id="repeatBtn" title="Repeat off" aria-label="Repeat off" aria-pressed="false" class="btn btn-link text-secondary p-0 border-0 player-mode-btn"><i class="fa-solid fa-repeat"></i></button>
       </div>
-      <div class="d-flex align-items-center gap-2 justify-content-end text-secondary player-volume">
-        <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
-        <input type="range" class="form-range style-range" id="volumeSlider" value="80" min="0" max="100" aria-label="Volume">
-      </div>
       <div class="d-flex align-items-center gap-2 w-100 text-secondary style-subtext player-seek">
         <span id="currTime">0:00</span>
         <input type="range" class="form-range flex-grow-1 style-range" id="seekSlider" value="0" min="0" max="100" aria-label="Track progress">
         <span id="totalTime">0:00</span>
       </div>
+    </div>
+
+    <!-- Volume (right edge) -->
+    <div class="d-flex align-items-center gap-2 text-secondary player-volume">
+      <i class="fa-solid fa-volume-high" aria-hidden="true"></i>
+      <input type="range" class="form-range style-range" id="volumeSlider" value="80" min="0" max="100" aria-label="Volume">
     </div>`;
 
   function mountBar() {

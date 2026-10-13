@@ -688,6 +688,131 @@ function openCreateAlbumModal() {
 
 fetchPlaylists();
 
+/* ============================================
+   CUSTOM SCROLL RAIL
+   Wires the right-edge rail on the Home shell:
+   - drag the neon thumb to scrub <main>
+   - up/down arrows jump one viewport
+   - thumb tracks the native scroll position
+   The rail overlays .app-main-wrap and never
+   affects layout. Works on PC (fixed footer) and
+   mobile (fixed player bar) since both scroll the
+   same <main> element.
+   ============================================ */
+(function initScrollRail() {
+  const rail = document.getElementById('leftScrollRail');
+  const thumb = document.getElementById('leftScrollThumb');
+  const upBtn = document.getElementById('railUpBtn');
+  const downBtn = document.getElementById('railDownBtn');
+  const scroller = document.querySelector('.app-main');
+  if (!rail || !scroller) return;
+
+  // Which element actually scrolls: on PC <main> scrolls internally; on the
+  // few pages where the body scrolls instead, fall back to the document.
+  const getScroll = () => (scroller.scrollHeight > scroller.clientHeight + 2)
+    ? scroller
+    : (document.scrollingElement || document.documentElement);
+
+  const scrollTop = (el) => (el === document.scrollingElement || el === document.documentElement)
+    ? (window.pageYOffset || document.documentElement.scrollTop)
+    : el.scrollTop;
+  const setScrollTop = (el, v) => {
+    if (el === document.scrollingElement || el === document.documentElement) window.scrollTo(0, v);
+    else el.scrollTop = v;
+  };
+
+  function updateThumb() {
+    const el = getScroll();
+    const max = el.scrollHeight - el.clientHeight;
+    if (!thumb) return;
+    if (max <= 0) {
+      thumb.style.opacity = '0';
+      return;
+    }
+    thumb.style.opacity = '';
+    const railH = rail.clientHeight - 12; // leave 6px top/bottom padding
+    const thumbH = thumb.offsetHeight || 60;
+    const ratio = scrollTop(el) / max;
+    const y = 6 + ratio * Math.max(railH - thumbH, 0);
+    thumb.style.transform = `translateY(${y}px)`;
+  }
+
+  // Arrow buttons: jump ~one viewport.
+  const jump = (dir) => {
+    const el = getScroll();
+    setScrollTop(el, scrollTop(el) + dir * el.clientHeight * 0.85);
+  };
+  upBtn?.addEventListener('click', () => jump(-1));
+  downBtn?.addEventListener('click', () => jump(1));
+
+  // Drag the thumb (mouse + touch) to scrub.
+  let dragging = false;
+  let startY = 0;
+  let startScroll = 0;
+  let travel = 1;
+
+  function onDown(e) {
+    if (e.target.closest('.rail-arrow')) return; // arrows handle themselves
+    const el = getScroll();
+    const max = el.scrollHeight - el.clientHeight;
+    if (max <= 0) return;
+    const point = e.touches ? e.touches[0] : e;
+    dragging = true;
+    startY = point.clientY;
+    startScroll = scrollTop(el);
+    travel = Math.max((rail.clientHeight - 12) - (thumb?.offsetHeight || 60), 1);
+    rail.classList.add('dragging');
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    const el = getScroll();
+    const max = el.scrollHeight - el.clientHeight;
+    const point = e.touches ? e.touches[0] : e;
+    const delta = (point.clientY - startY) / travel;
+    setScrollTop(el, startScroll + delta * max);
+    e.preventDefault();
+  }
+  function onUp() {
+    if (!dragging) return;
+    dragging = false;
+    rail.classList.remove('dragging');
+  }
+
+  rail.addEventListener('mousedown', onDown);
+  rail.addEventListener('touchstart', onDown, { passive: false });
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('mouseup', onUp);
+  window.addEventListener('touchend', onUp);
+
+  scroller.addEventListener('scroll', () => { updateThumb(); revealRail(); }, { passive: true });
+  window.addEventListener('resize', updateThumb);
+
+  // Reveal the (otherwise invisible) rail while scrolling on EVERY device
+  // (mobile + Surface + PC), then fade it back out after a short idle so the
+  // edge stays clean. Desktop keeps it pinned via CSS (opacity:1); this class
+  // is what makes it appear on touch devices too.
+  let revealTimer = null;
+  function revealRail() {
+    rail.classList.add('rail-active');
+    scroller.classList.add('rail-active');
+    clearTimeout(revealTimer);
+    revealTimer = setTimeout(() => {
+      rail.classList.remove('rail-active');
+      scroller.classList.remove('rail-active');
+    }, 900);
+  }
+
+  // Content loads async (tracks/playlists) so the range changes — keep the
+  // thumb in sync with a light observer instead of a fixed timer.
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(updateThumb).observe(scroller);
+  }
+  updateThumb();
+  window.addEventListener('load', updateThumb);
+})();
+
 fetchTracks();
 renderAuthControls();
 

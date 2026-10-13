@@ -250,6 +250,71 @@ tr:last-child td {
   font-size: 13px
 }
 
+/* utility used by the pagers (admin pages don't load Bootstrap) */
+.d-none {
+  display: none !important
+}
+
+/* ---------- Table pagination ----------
+   Rendered under each table when a list has more than 12 rows. */
+.pager-host {
+  margin-top: 14px
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px
+}
+
+.pg {
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  min-width: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  border-radius: 8px
+}
+
+.pg:hover:not(:disabled):not(.cur) {
+  border-color: var(--acc);
+  color: var(--acc)
+}
+
+.pg:disabled {
+  opacity: .45;
+  cursor: not-allowed
+}
+
+.pg.cur {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: #fff;
+  font-weight: 600;
+  cursor: default
+}
+
+.pg-nums {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px
+}
+
+.pg-gap {
+  color: var(--mute);
+  padding: 0 2px
+}
+
+.pg-info {
+  margin-left: auto;
+  color: var(--mute);
+  font-size: 13px
+}
+
 .tag {
   display: inline-block;
   padding: 2px 9px;

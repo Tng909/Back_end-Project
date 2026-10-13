@@ -7,6 +7,9 @@ const audio = window.MusicPlayer ? window.MusicPlayer.audio : null;
 let currentTrack = null;
 let lyricLines = [];
 let activeLyricIndex = -1;
+// Auto-follow pauses while the user scrolls up to read earlier lyrics, then
+// resumes once they scroll back down near the live line.
+let lyricFollowPaused = false;
 
 function escapeHtml(value) {
   return String(value || '').replace(/[&<>"']/g, (character) => ({
@@ -73,8 +76,29 @@ function updateActiveLyric() {
   if (activeLyricIndex < 0) return;
   const activeLine = lyricsContainer.querySelector(`[data-lyric-index="${activeLyricIndex}"]`);
   activeLine?.classList.add('active');
-  activeLine?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Only auto-scroll while the user is following along. If they scrolled up
+  // to read earlier lyrics, keep the view put so it doesn't yank back down.
+  if (!lyricFollowPaused) {
+    activeLine?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
+
+// Pause auto-follow when the user scrolls up inside the lyrics box; resume it
+// once they scroll back down to (or past) the currently highlighted line.
+(function watchLyricScroll() {
+  if (!lyricsContainer) return;
+  lyricsContainer.addEventListener('scroll', () => {
+    if (activeLyricIndex < 0) return;
+    const activeLine = lyricsContainer.querySelector(`[data-lyric-index="${activeLyricIndex}"]`);
+    if (!activeLine) return;
+    // Compare the live line's box against the visible lyrics window (rects are
+    // immune to nested offsetParent quirks). Following resumes when the line
+    // is back inside the viewport; it pauses the moment it scrolls out.
+    const box = lyricsContainer.getBoundingClientRect();
+    const line = activeLine.getBoundingClientRect();
+    lyricFollowPaused = line.top < box.top + 4 || line.bottom > box.bottom - 4;
+  }, { passive: true });
+})();
 
 async function loadTrack() {
   const loading = document.getElementById('trackLoading');

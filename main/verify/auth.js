@@ -1,9 +1,10 @@
 const API_URL = `${window.location.origin}/api/auth`;
 const alertBox = document.getElementById('alertBox');
+const noticeBox = document.getElementById('noticeBox');
 
 function showError(msg) {
   if (!alertBox) return;
-  alertBox.classList.remove('d-none', 'alert-success');
+  alertBox.classList.remove('d-none', 'alert-success', 'alert-warning');
   alertBox.classList.add('alert-danger');
   alertBox.textContent = msg;
 }
@@ -21,16 +22,70 @@ async function parseJsonSafe(res) {
 function showOk(msg) {
   if (!alertBox) { alert(msg); return; }
   alertBox.textContent = msg;
-  alertBox.classList.remove('d-none', 'alert-danger');
+  alertBox.classList.remove('d-none', 'alert-danger', 'alert-warning');
   alertBox.classList.add('alert-success');
+}
+
+// Prominent info/notice banner (top of the card) used for guard messages such
+// as "Please log in to access this page" passed via ?message=.
+function showNotice(msg) {
+  if (!noticeBox) { alert(msg); return; }
+  noticeBox.innerHTML = msg;
+  noticeBox.classList.remove('d-none');
+}
+
+// A banner letting an unconfirmed user request a fresh verification email
+// without re-typing anything. `email` is the account address from the server.
+function showResendNotice(message, email) {
+  if (!noticeBox) return;
+  noticeBox.innerHTML = `
+    <div class="d-flex flex-column gap-2">
+      <div><i class="fa-solid fa-envelope-circle-check me-2"></i>${message}</div>
+      <div>
+        <button type="button" id="resendNoticeBtn" class="btn btn-sm btn-info fw-semibold">
+          <i class="fa-solid fa-paper-plane me-1"></i>Resend verification email
+        </button>
+        <span id="resendNoticeStatus" class="ms-2 small text-secondary"></span>
+      </div>
+    </div>`;
+  noticeBox.classList.remove('d-none');
+  const btn = document.getElementById('resendNoticeBtn');
+  const status = document.getElementById('resendNoticeStatus');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    if (status) status.textContent = 'Sending…';
+    try {
+      const r = await fetch(`${API_URL}/resend-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const d = await parseJsonSafe(r);
+      if (!r.ok) throw new Error(d.error || 'Resend failed.');
+      if (status) status.textContent = d.message || 'Verification email sent. Check your inbox.';
+    } catch (err) {
+      if (status) status.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 }
 
 // 1. LOGIN
 const loginForm = document.getElementById('loginForm');
   if (loginForm) {
     const loginId = document.getElementById('loginIdentifier');
-    if (new URLSearchParams(window.location.search).get('registered') === '1') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('registered') === '1') {
       showOk('Verification email sent. Check your inbox and verify your account before logging in.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    // Guard banner: protected pages redirect here with ?message=... so the user
+    // sees a prominent "Please log in to access this page." notice up top.
+    const guardMessage = params.get('message');
+    if (guardMessage) {
+      showNotice(guardMessage);
       window.history.replaceState({}, document.title, window.location.pathname);
     }
     const verifyExistingSession = (async () => {
@@ -90,35 +145,20 @@ const loginForm = document.getElementById('loginForm');
         });
         const data = await parseJsonSafe(res);
         if (!res.ok) {
-          // Unverified login: offer one-click resend to the same email.
+          // Unverified login: this account exists but the email was never
+          // confirmed. Block access and surface a prominent banner that
+          // explains why, plus a one-click resend to the same email.
           if (data.needVerify && data.email) {
-            showError(`${data.error} `);
-            let link = document.getElementById('resendLoginLink');
-            if (!link) {
-              link = document.createElement('a');
-              link.id = 'resendLoginLink';
-              link.href = '#';
-              link.className = 'alert-link ms-1';
-              link.textContent = 'Resend verify email';
-              alertBox.appendChild(link);
-              link.onclick = async (ev) => {
-                ev.preventDefault();
-                try {
-                  const r = await fetch(`${API_URL}/resend-verify`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: data.email })
-                  });
-                  const d = await parseJsonSafe(r);
-                  if (!r.ok) throw new Error(d.error || 'Resend failed.');
-                  showOk(d.message);
-                } catch (err) { showError(err.message); }
-              };
-            }
-          } else {
-            throw new Error(data.error || 'Login failed');
+            showResendNotice(
+              '<b>Verify your email to finish setting up your account.</b> ' +
+              'We sent a <b>Verify My Account</b> link to <b>' + data.email + '</b>. ' +
+              'You must confirm it before you can log in. ' +
+              'Didn\u2019t get it, or did the 20\u2011minute link expire? Resend it below.',
+              data.email
+            );
+            return;
           }
-          return;
+          throw new Error(data.error || 'Login failed');
         }
         if (!data.token || !data.user || !['user', 'admin'].includes(data.user.role)) {
           throw new Error('Server returned an invalid login response.');

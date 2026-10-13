@@ -46,11 +46,19 @@ function setFlash(msg, kind = 'ok') {
 const TRACKS_API = `${window.location.origin}/api/tracks`;
 const USERS_API = `${window.location.origin}/api/auth/users`;
 
+// Page size for the admin tables: when a list has more than this many rows it
+// splits into pages you flip through with Prev/Next (still on this one page).
+const PAGE_SIZE = 12;
+
 const songsBody = document.getElementById('songsBody');
 const usersBody = document.getElementById('usersBody');
 
 let tracksCache = [];
 let usersCache = [];
+// Current page (1-based) per table. Reset to 1 whenever the list is refetched
+// or a filter changes so you always land on the first page of results.
+let songsPage = 1;
+let usersPage = 1;
 
 function adminHeaders(isJson = true) {
   const token = localStorage.getItem('token');
@@ -82,6 +90,84 @@ function setMsg(el, msg, isError = true) {
   if (!el) return;
   el.textContent = msg || '';
   el.style.color = msg ? (isError ? '#ff5a7d' : '#1db954') : '';
+}
+
+// ---------- Pagination ----------
+// Slice `list` to the current page, render those rows, and (re)build the pager
+// controls under the table. Returns the page actually shown so callers can
+// keep their `*Page` variable in sync. A shared helper keeps Songs and Users
+// behaving identically.
+function renderPage({ list, body, rowFn, emptyHtml, page, pagerId, onPage }) {
+  const total = list.length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const current = Math.min(Math.max(page, 1), pageCount);
+  const start = (current - 1) * PAGE_SIZE;
+  const slice = list.slice(start, start + PAGE_SIZE);
+
+  body.innerHTML = slice.length
+    ? slice.map(rowFn).join('')
+    : emptyHtml;
+
+  renderPager(pagerId, current, pageCount, total, onPage);
+  return current;
+}
+
+// Build Prev / numbered / Next controls. Clicking a control calls onPage(n),
+// which updates the stored page and re-renders just this table.
+function renderPager(pagerId, current, pageCount, total, onPage) {
+  const host = document.getElementById(pagerId);
+  if (!host) return;
+
+  // Nothing to paginate — hide the controls entirely.
+  if (pageCount <= 1) {
+    host.innerHTML = '';
+    host.classList.add('d-none');
+    return;
+  }
+  host.classList.remove('d-none');
+
+  const from = (current - 1) * PAGE_SIZE + 1;
+  const to = Math.min(current * PAGE_SIZE, total);
+
+  // Numbered buttons with a simple window around the current page so long
+  // lists stay compact (e.g. 1 … 4 5 6 … 20).
+  const numbers = [];
+  const push = (n) => numbers.push(n);
+  const windowSize = 1;
+  for (let n = 1; n <= pageCount; n++) {
+    if (n === 1 || n === pageCount || Math.abs(n - current) <= windowSize) {
+      push(n);
+    } else if (numbers[numbers.length - 1] !== '…') {
+      push('…');
+    }
+  }
+
+  const btn = (n, label, opts = {}) => {
+    const disabled = opts.disabled ? ' disabled' : '';
+    const active = opts.active ? ' cur' : '';
+    const aria = opts.aria ? ` aria-label="${opts.aria}"` : '';
+    return `<button type="button" class="pg${active}" data-page="${n}"${disabled}${aria}>${label}</button>`;
+  };
+
+  host.innerHTML = `
+    <div class="pager">
+      ${btn(current - 1, '&lsaquo; Prev', { disabled: current === 1, aria: 'Previous page' })}
+      <span class="pg-nums">
+        ${numbers.map((n) => (n === '…'
+          ? '<span class="pg-gap">&hellip;</span>'
+          : btn(n, n, { active: n === current, aria: `Page ${n}` }))).join('')}
+      </span>
+      ${btn(current + 1, 'Next &rsaquo;', { disabled: current === pageCount, aria: 'Next page' })}
+      <span class="pg-info">Showing ${from}–${to} of ${total}</span>
+    </div>`;
+
+  host.querySelectorAll('button[data-page]').forEach((b) => {
+    b.addEventListener('click', () => {
+      const n = Number(b.dataset.page);
+      if (!Number.isFinite(n) || n < 1 || n > pageCount || n === current) return;
+      onPage(n);
+    });
+  });
 }
 // ---------- Songs table (same fields as config/seed.js) ----------
 function songRow(t) {
@@ -119,12 +205,26 @@ async function loadSongs() {
       );
     }
     tracksCache = list;
-    songsBody.innerHTML = tracksCache.length
-      ? tracksCache.map(songRow).join('')
-      : '<tr><td colspan="6" class="m">No tracks yet — run node config/seed.js or Add song.</td></tr>';
+    // A fresh fetch/filter always starts on page 1.
+    songsPage = 1;
+    drawSongsPage(songsPage);
   } catch (err) {
     songsBody.innerHTML = `<tr><td colspan="6" class="m">${escapeHtml(err.message)}</td></tr>`;
   }
+}
+
+// Render the current songs page + its pager. Kept as its own function so the
+// pager's Prev/Next/number buttons can call it without re-fetching.
+function drawSongsPage(page) {
+  songsPage = renderPage({
+    list: tracksCache,
+    body: songsBody,
+    rowFn: songRow,
+    emptyHtml: '<tr><td colspan="6" class="m">No tracks yet — run node config/seed.js or Add song.</td></tr>',
+    page,
+    pagerId: 'songsPager',
+    onPage: drawSongsPage
+  });
 }
 
 function openSongForm() {
@@ -180,9 +280,9 @@ async function loadUsers() {
       );
     }
     usersCache = list;
-    usersBody.innerHTML = usersCache.length
-      ? usersCache.map(userRow).join('')
-      : '<tr><td colspan="6" class="m">No users match — try another keyword or Add user.</td></tr>';
+    // A fresh fetch/filter always starts on page 1.
+    usersPage = 1;
+    drawUsersPage(usersPage);
   } catch (err) {
     let msg = err.message;
     if (msg.includes('API route not found')) {
@@ -192,6 +292,19 @@ async function loadUsers() {
     }
     usersBody.innerHTML = `<tr><td colspan="6" class="m">${escapeHtml(msg)}</td></tr>`;
   }
+}
+
+// Render the current users page + its pager (mirrors drawSongsPage).
+function drawUsersPage(page) {
+  usersPage = renderPage({
+    list: usersCache,
+    body: usersBody,
+    rowFn: userRow,
+    emptyHtml: '<tr><td colspan="6" class="m">No users match — try another keyword or Add user.</td></tr>',
+    page,
+    pagerId: 'usersPager',
+    onPage: drawUsersPage
+  });
 }
 
 function openUserForm(user) {
