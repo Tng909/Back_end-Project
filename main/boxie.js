@@ -23,7 +23,8 @@
   } catch (_) { history = []; }
 
   function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(history.slice(-30))); } catch (_) {}
+    history = history.slice(-30); // keep only the most recent turns in the cache
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(history)); } catch (_) {}
   }
   function scrollDown() { msgs.scrollTop = msgs.scrollHeight; }
   function esc(s) {
@@ -92,7 +93,12 @@
       } else {
         sayAI(data.reply || '...', data.tracks || [], data.links || []);
         history.push({ role: 'user', text });
-        history.push({ role: 'model', text: String(data.reply || '').slice(0, 1000) });
+        history.push({
+          role: 'model',
+          text: String(data.reply || '').slice(0, 1000),
+          tracks: Array.isArray(data.tracks) ? data.tracks.slice(0, 6) : [],
+          links: Array.isArray(data.links) ? data.links.slice(0, 6) : [],
+        });
         save();
       }
     } catch (e) {
@@ -109,8 +115,8 @@
     if (open) {
       if (!msgs.children.length) {
         sayAI('Hi! I\'m Boxie. Ask me to find songs, recommend by genre, reset your password, or tap a suggestion below.', [], []);
-        loadChips();
       }
+      if (!chips.children.length) loadChips();
       setTimeout(() => input.focus(), 50);
     }
   }
@@ -134,13 +140,20 @@
   });
   fab.addEventListener('click', () => setOpen(!opened));
   closeBtn?.addEventListener('click', () => setOpen(false));
-  clearBtn?.addEventListener('click', () => { msgs.innerHTML = ''; history = []; save(); sayAI('Chat cleared. What shall we listen to?', [], []); });
+  clearBtn?.addEventListener('click', () => {
+    msgs.innerHTML = '';
+    history = [];
+    try { localStorage.removeItem(STORE_KEY); } catch (_) {} // recycle bin: delete the saved cache
+    sayAI('Chat cleared. What shall we listen to?', [], []);
+  });
   form.addEventListener('submit', (e) => { e.preventDefault(); send(input.value); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && opened) setOpen(false); });
-  // Replay saved conversation lightly (user lines only to keep it fast)
-  for (const m of history.slice(-6)) {
+  // Replay the saved conversation so it survives a page reload.
+  // AI messages restore their track cards + links to keep the full context.
+  for (const m of history) {
     if (m.role === 'user') sayUser(m.text);
-    else if (m.role === 'model') sayAI(m.text, [], []);
+    else if (m.role === 'model') sayAI(m.text, m.tracks || [], m.links || []);
   }
+  scrollDown();
   setTimeout(() => { if (!opened && ping) ping.classList.remove('d-none'); }, 4000);
 })();

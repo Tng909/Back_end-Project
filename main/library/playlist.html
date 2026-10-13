@@ -1,128 +1,297 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BOX MUSIC — Playlist</title>
-  <link rel="icon" type="image/jpeg" href="Image/Logo.jpg">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="../style.css">
-  <link rel="stylesheet" href="boxie.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Album — BOX MUSIC</title>
+  <link rel="icon" type="image/jpeg" href="../Image/Logo.jpg" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <link href="../style.css" rel="stylesheet" />
 </head>
-<body class="bg-black text-white vh-100 d-flex flex-column overflow-hidden app-shell">
+<body class="bg-black text-white d-flex flex-column app-shell album-page" style="min-height:100vh;">
 
-  <div class="container py-4 py-md-5 col-lg-10 flex-grow-1 overflow-auto album-page">
-    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-      <div>
-        <h1 id="playlistName" class="h3 text-white fw-bold">Loading…</h1>
-        <p id="playlistDesc" class="text-secondary mb-1"></p>
-        <p id="playlistTrackCount" class="text-secondary small mb-0"></p>
-      </div>
-      <a href="../main.html" class="btn btn-outline-success rounded-pill fw-semibold">
-        <i class="fa-solid fa-arrow-left me-2"></i>Back to Library
-      </a>
+  <!-- Top bar -->
+  <header class="d-flex align-items-center gap-3 px-3 px-md-4 py-3 border-bottom border-secondary border-opacity-25 bg-dark">
+    <a href="../Main.html" class="btn btn-link text-secondary p-0 border-0 text-decoration-none d-flex align-items-center gap-2" title="Back to Home">
+      <i class="fa-solid fa-arrow-left fs-5"></i><span class="d-none d-sm-inline small">Back</span>
+    </a>
+    <a href="../Main.html" class="d-flex align-items-center gap-2 text-success fs-5 fw-bold text-decoration-none">
+      <img src="../Image/Logo.jpg" alt="Logo" class="app-logo" />
+      <span class="text-white">BOX MUSIC</span>
+    </a>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <button id="editBtn" class="btn btn-outline-success btn-sm rounded-pill px-3" type="button">
+        <i class="fa-solid fa-pen me-1"></i><span class="d-none d-sm-inline">Edit</span>
+      </button>
+      <button id="addBtn" class="btn btn-success btn-sm rounded-pill px-3 fw-semibold" type="button">
+        <i class="fa-solid fa-plus me-1"></i><span class="d-none d-sm-inline">Add songs</span>
+      </button>
     </div>
+  </header>
 
-    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3" id="playlistGrid">
-      <div id="playlistEmpty" class="alert alert-dark border-secondary text-secondary d-none" role="alert">
-        No tracks in this album yet.
+  <!-- Album hero -->
+  <section class="album-hero px-3 px-md-5 py-4 d-flex flex-column flex-sm-row align-items-sm-end gap-4 bg-gradient-dark">
+    <div class="album-cover shadow-lg" id="albumCover" aria-label="Album cover">
+      <img src="../Image/Logo.jpg" alt="Album cover" class="w-100 h-100" style="object-fit:cover;" id="coverImg" />
+    </div>
+    <div class="flex-grow-1 min-w-0 text-center text-sm-start">
+      <div class="text-uppercase style-subtext text-secondary fw-semibold mb-1" style="letter-spacing:.15em;">Album</div>
+      <h1 id="albumTitle" class="fw-bold text-white mb-2 lh-1 album-title">Loading…</h1>
+      <p id="albumDesc" class="text-secondary mb-2 style-subtext album-desc"></p>
+      <div class="d-flex align-items-center gap-3 flex-wrap justify-content-center justify-content-sm-start">
+        <span class="badge bg-success-subtle text-success rounded-pill px-3" id="albumCount">0 songs</span>
+        <span id="albumOwner" class="text-secondary style-subtext"></span>
+      </div>
+      <div class="d-flex align-items-center gap-3 mt-3">
+        <button id="playAllBtn" class="btn btn-success rounded-circle d-flex align-items-center justify-content-center p-0 shadow" style="width:56px;height:56px;" title="Play album">
+          <i class="fa-solid fa-play fs-5"></i>
+        </button>
+        <button id="shuffleAllBtn" class="btn btn-outline-light rounded-circle d-flex align-items-center justify-content-center p-0" style="width:44px;height:44px;" title="Shuffle album">
+          <i class="fa-solid fa-shuffle"></i>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Track grid (same card style as main page) -->
+  <main class="flex-grow-1 overflow-auto bg-gradient-dark px-3 px-md-5 py-4 app-main" id="albumMain">
+    <div id="albumLoading" class="text-center text-secondary py-5">
+      <div class="spinner-border spinner-border-sm me-2" role="status"></div> Loading songs…
+    </div>
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 row-cols-xl-6 g-3" id="trackGrid"></div>
+    <div id="albumEmpty" class="text-center text-secondary py-5 d-none">
+      <i class="fa-regular fa-folder-open fs-1 mb-3 d-block"></i>
+      This album is empty. Click <strong>Add songs</strong> to get started.
+    </div>
+  </main>
+
+  <!-- Edit modal -->
+  <div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-dark text-white border-secondary">
+        <div class="modal-header border-secondary border-opacity-25">
+          <h5 class="modal-title"><i class="fa-solid fa-pen me-2 text-success"></i>Album details</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label style-subtext text-secondary">Name</label>
+          <input type="text" class="form-control mb-3 bg-black text-white border-secondary" id="editName" />
+          <label class="form-label style-subtext text-secondary">Description</label>
+          <textarea class="form-control bg-black text-white border-secondary" id="editDesc" rows="3"></textarea>
+        </div>
+        <div class="modal-footer border-secondary border-opacity-25">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-success btn-sm" id="saveEditBtn">Save</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Player Bar is injected by player.js (shared across all pages) -->
+  <!-- Add songs modal -->
+  <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content bg-dark text-white border-secondary">
+        <div class="modal-header border-secondary border-opacity-25">
+          <h5 class="modal-title"><i class="fa-solid fa-plus me-2 text-success"></i>Add songs</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="search" class="form-control mb-3 bg-black text-white border-secondary" id="addSearch" placeholder="Search songs…" />
+          <div id="addList" class="d-flex flex-column gap-2"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="../player.js"></script>
-
   <script>
-    (() => {
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get('id');
-      const nameEl = document.getElementById('playlistName');
-      const descEl = document.getElementById('playlistDesc');
-      const grid = document.getElementById('playlistGrid');
-      const emptyEl = document.getElementById('playlistEmpty');
-      const trackCountEl = document.getElementById('playlistTrackCount');
-
-      function escapeHtml(value) {
-        return String(value ?? '').replace(/[&<>"']/g, (character) => ({
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#39;'
-        }[character]));
+    (function () {
+      'use strict';
+      function escapeHtml(v) {
+        return String(v).replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        }[c]));
       }
-
       function resolveUrl(url) {
         if (!url) return url;
         return /^https?:\/\//i.test(url) ? url : encodeURI(url);
       }
+      function trackKey(t) { return t._id || t.title; }
 
-      // Same visual card as the main page (cover art + title + artist/album).
-      function trackCardHtml(track, index) {
-        return `
-          <div class="col">
-            <div class="card card-track h-100 p-2 border-0 rounded-3 text-white" role="button"
-                 tabindex="0" onclick="playAlbumTrack(${index})"
-                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();playAlbumTrack(${index});}"
-                 aria-label="Play ${escapeHtml(track.title)}">
-              <img src="${resolveUrl(track.coverArtUrl) || 'Image/Logo.jpg'}" class="card-img-top rounded mb-2" alt="${escapeHtml(track.title)}" loading="lazy">
-              <div class="card-body p-0 text-truncate">
-                <h6 class="card-title text-truncate mb-1 fw-bold fs-6">${escapeHtml(track.title)}</h6>
-                <p class="card-text text-secondary text-truncate style-subtext mb-0">${escapeHtml(track.artist)}</p>
-                <p class="card-text text-secondary text-truncate style-subtext mb-0">${escapeHtml(track.album || '')}${track.genre ? ` • ${escapeHtml(track.genre)}` : ''}</p>
-              </div>
-            </div>
-          </div>
-        `;
+      const playlistId = new URLSearchParams(location.search).get('id');
+      let playlist = null;
+      let tracks = [];
+      let allTracks = [];
+      const $ = (id) => document.getElementById(id);
+      const grid = $('trackGrid');
+
+      async function load() {
+        if (!playlistId) { $('albumTitle').textContent = 'Album not found'; return; }
+        try {
+          const res = await fetch('/api/playlists/' + encodeURIComponent(playlistId));
+          if (!res.ok) throw new Error('Failed to load album');
+          playlist = await res.json();
+          tracks = (playlist.tracks || []).filter(Boolean);
+          render();
+        } catch (err) {
+          console.error(err);
+          $('albumTitle').textContent = 'Could not load album';
+          $('albumLoading').classList.add('d-none');
+        }
       }
 
-      // Exposed for the card onclick: load the whole album into the shared player.
-      window.playAlbumTrack = function (index) {
-        if (window.MusicPlayer) window.MusicPlayer.playIndex(index);
-      };
-
-      if (!id) {
-        grid.innerHTML = '<p class="text-secondary">No album selected.</p>';
-        return;
+      function render() {
+        document.title = (playlist.name || 'Album') + ' — BOX MUSIC';
+        $('albumTitle').textContent = playlist.name || 'Untitled album';
+        $('albumDesc').textContent = playlist.description || '';
+        const n = tracks.length;
+        $('albumCount').textContent = n + (n === 1 ? ' song' : ' songs');
+        if (playlist.user && (playlist.user.username || playlist.user.fullName)) {
+          $('albumOwner').textContent = '• by ' + (playlist.user.fullName || playlist.user.username);
+        }
+        const covers = tracks.slice(0, 4).map((t) => resolveUrl(t.coverArtUrl)).filter(Boolean);
+        const coverBox = $('albumCover');
+        if (covers.length > 1) {
+          coverBox.innerHTML = '<div class="cover-collage">' +
+            covers.map((u) => '<img src="' + u + '" alt="" loading="lazy">').join('') + '</div>';
+        } else if (covers.length === 1) {
+          coverBox.innerHTML = '<img src="' + covers[0] + '" alt="Album cover" style="object-fit:cover;width:100%;height:100%;">';
+        }
+        $('editName').value = playlist.name || '';
+        $('editDesc').value = playlist.description || '';
+        renderGrid();
       }
 
-      fetch(`http://localhost:3000/api/playlists/${encodeURIComponent(id)}`)
-        .then((res) => {
-          if (!res.ok) throw new Error(`API ${res.status}`);
-          return res.json();
-        })
-        .then((pl) => {
-          nameEl.textContent = pl.name || 'Untitled Album';
-          descEl.textContent = pl.description || '';
-          document.title = `${pl.name || 'Album'} — Box Music`;
+      function renderGrid() {
+        grid.innerHTML = tracks.map((track, idx) => (
+          '<div class="col">' +
+            '<div class="card card-track h-100 p-2 border-0 rounded-3 text-white" role="button" tabindex="0" data-idx="' + idx + '" title="' + escapeHtml(track.title || '') + '">' +
+              '<img src="' + resolveUrl(track.coverArtUrl) + '" class="card-img-top rounded mb-2" alt="' + escapeHtml(track.title || '') + '" loading="lazy">' +
+              '<div class="card-body p-0 text-truncate">' +
+                '<h6 class="card-title text-truncate mb-1 fw-bold fs-6">' + escapeHtml(track.title || 'Untitled') + '</h6>' +
+                '<p class="card-text text-secondary text-truncate style-subtext mb-0">' + escapeHtml(track.artist || '') + '</p>' +
+                '<p class="card-text text-secondary text-truncate style-subtext mb-0">' + escapeHtml(track.album || '') + (track.genre ? ' • ' + escapeHtml(track.genre) : '') + '</p>' +
+              '</div>' +
+              '<button class="btn btn-sm btn-link text-secondary p-0 mt-1 album-remove" data-remove="' + escapeHtml(trackKey(track)) + '" title="Remove from album"><i class="fa-solid fa-trash-can"></i></button>' +
+            '</div>' +
+          '</div>'
+        )).join('');
+        $('albumLoading').classList.add('d-none');
+        $('albumEmpty').classList.toggle('d-none', tracks.length > 0);
+      }
+      function playAt(idx) {
+        const MP = window.MusicPlayer;
+        if (!MP || !tracks.length) return;
+        MP.setQueue(tracks, idx, true);
+      }
+      function shuffleAlbum() {
+        const MP = window.MusicPlayer;
+        if (!MP || !tracks.length) return;
+        MP.setShuffle(true);
+        MP.setQueue(tracks, Math.floor(Math.random() * tracks.length), true);
+      }
 
-          const list = pl.tracks || [];
-          if (trackCountEl) {
-            trackCountEl.textContent = list.length
-              ? `${list.length} ${list.length === 1 ? 'track' : 'tracks'}`
-              : '';
-          }
+      grid.addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('[data-remove]');
+        if (removeBtn) { e.stopPropagation(); removeTrack(removeBtn.getAttribute('data-remove')); return; }
+        const card = e.target.closest('[data-idx]');
+        if (card) playAt(Number(card.getAttribute('data-idx')));
+      });
+      grid.addEventListener('keydown', (e) => {
+        const card = e.target.closest('[data-idx]');
+        if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); playAt(Number(card.getAttribute('data-idx'))); }
+      });
+      $('playAllBtn').addEventListener('click', () => playAt(0));
+      $('shuffleAllBtn').addEventListener('click', shuffleAlbum);
 
-          if (list.length) {
-            emptyEl.classList.add('d-none');
-            grid.innerHTML = list.map((t, i) => trackCardHtml(t, i)).join('');
-            if (window.MusicPlayer) window.MusicPlayer.setQueue(list, 0);
-          } else {
-            emptyEl.classList.remove('d-none');
-            grid.innerHTML = '';
-            if (window.MusicPlayer) window.MusicPlayer.setQueue([], 0);
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to load album:', err);
-          emptyEl.textContent = 'Failed to load album.';
-          emptyEl.classList.remove('d-none');
-          grid.innerHTML = '';
+      $('editBtn').addEventListener('click', () => bootstrap.Modal.getOrCreateInstance($('editModal')).show());
+      $('saveEditBtn').addEventListener('click', async () => {
+        const name = $('editName').value.trim();
+        const description = $('editDesc').value;
+        if (!name) { alert('Album name is required'); return; }
+        try {
+          const res = await fetch('/api/playlists/' + encodeURIComponent(playlistId), {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description })
+          });
+          if (!res.ok) throw new Error('Save failed');
+          playlist = await res.json();
+          tracks = (playlist.tracks || []).filter(Boolean);
+          bootstrap.Modal.getOrCreateInstance($('editModal')).hide();
+          render();
+        } catch (err) { console.error(err); alert('Could not save changes'); }
+      });
+
+      async function removeTrack(trackId) {
+        if (!confirm('Remove this song from the album?')) return;
+        try {
+          const res = await fetch('/api/playlists/' + encodeURIComponent(playlistId) + '/tracks/' + encodeURIComponent(trackId), { method: 'DELETE' });
+          if (!res.ok) throw new Error('Remove failed');
+          playlist = await res.json();
+          tracks = (playlist.tracks || []).filter(Boolean);
+          render();
+        } catch (err) { console.error(err); alert('Could not remove song'); }
+      }
+
+      $('addBtn').addEventListener('click', async () => {
+        bootstrap.Modal.getOrCreateInstance($('addModal')).show();
+        $('addSearch').value = '';
+        await ensureAllTracks();
+        renderAddList('');
+      });
+      $('addSearch').addEventListener('input', (e) => renderAddList(e.target.value));
+
+      async function ensureAllTracks() {
+        if (allTracks.length) return;
+        try {
+          const res = await fetch('/api/tracks');
+          if (res.ok) allTracks = await res.json();
+        } catch (err) { console.error(err); }
+      }
+
+      function renderAddList(query) {
+        const inAlbum = new Set(tracks.map(trackKey));
+        const q = (query || '').trim().toLowerCase();
+        const list = allTracks.filter((t) => {
+          if (inAlbum.has(trackKey(t))) return false;
+          if (!q) return true;
+          return (t.title || '').toLowerCase().includes(q) || (t.artist || '').toLowerCase().includes(q);
         });
+        if (!list.length) { $('addList').innerHTML = '<div class="text-secondary style-subtext text-center py-3">No songs to add.</div>'; return; }
+        $('addList').innerHTML = list.map((t) => (
+          '<div class="d-flex align-items-center gap-3 add-row p-2 rounded-3" data-add="' + escapeHtml(trackKey(t)) + '" role="button">' +
+            '<img src="' + resolveUrl(t.coverArtUrl) + '" alt="" width="44" height="44" class="rounded" style="object-fit:cover;">' +
+            '<div class="flex-grow-1 min-w-0 text-truncate">' +
+              '<div class="fw-semibold text-truncate small">' + escapeHtml(t.title || 'Untitled') + '</div>' +
+              '<div class="text-secondary style-subtext text-truncate">' + escapeHtml(t.artist || '') + '</div>' +
+            '</div>' +
+            '<i class="fa-solid fa-plus text-success"></i>' +
+          '</div>'
+        )).join('');
+      }
+
+      $('addList').addEventListener('click', async (e) => {
+        const row = e.target.closest('[data-add]');
+        if (!row) return;
+        const id = row.getAttribute('data-add');
+        row.style.opacity = '0.4';
+        try {
+          const res = await fetch('/api/playlists/' + encodeURIComponent(playlistId) + '/tracks', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tracks: [id] })
+          });
+          if (!res.ok) throw new Error('Add failed');
+          playlist = await res.json();
+          tracks = (playlist.tracks || []).filter(Boolean);
+          render();
+          renderAddList($('addSearch').value);
+        } catch (err) { console.error(err); row.style.opacity = '1'; alert('Could not add song'); }
+      });
+
+      load();
     })();
   </script>
 </body>
-
 </html>

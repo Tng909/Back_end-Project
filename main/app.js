@@ -626,6 +626,10 @@ function createNewAlbum() {
         const bsModal = bootstrap.Modal.getInstance(modal);
         if (bsModal) bsModal.hide();
       }
+      const nameInput = document.getElementById('createAlbumName');
+      const descInput = document.getElementById('createAlbumDesc');
+      if (nameInput) nameInput.value = '';
+      if (descInput) descInput.value = '';
       renderPlaylistDropdown();
       window.location.href = `library/playlist.html?id=${encodeURIComponent(pl._id)}`;
     })
@@ -635,10 +639,30 @@ function createNewAlbum() {
     });
 }
 
-// Wire the "Create New Album" button.
+// Open the Create Album modal. Shared by the desktop sidebar "+" and the
+// mobile/tablet section button so the feature works identically everywhere.
+function openCreateAlbumModal() {
+  const modalEl = document.getElementById('createAlbumModal');
+  if (!modalEl) return;
+  let modal = bootstrap.Modal.getInstance(modalEl);
+  if (!modal) modal = new bootstrap.Modal(modalEl);
+  modal.show();
+  setTimeout(() => {
+    const nameInput = document.getElementById('createAlbumName');
+    if (nameInput) nameInput.focus();
+  }, 300);
+}
+
+// Wire every "Create Album" trigger (desktop sidebar + mobile section button).
 (function () {
-  const createBtn = document.getElementById('createAlbumBtn');
-  if (createBtn) createBtn.addEventListener('click', createNewAlbum);
+  ['createAlbumBtn', 'createAlbumBtnMobile'].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener('click', openCreateAlbumModal);
+  });
+  const submitBtn = document.getElementById('createAlbumSubmit');
+  if (submitBtn) submitBtn.addEventListener('click', createNewAlbum);
+  const form = document.getElementById('createAlbumForm');
+  if (form) form.addEventListener('submit', (e) => { e.preventDefault(); createNewAlbum(); });
 })();
 
 // Handle playlist-item clicks inside the dropdown menu.
