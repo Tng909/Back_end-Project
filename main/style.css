@@ -1231,3 +1231,72 @@ body.has-player .album-page {
   .album-page .app-main { padding-bottom: 130px; }
   .album-page .album-cover { width: 150px; height: 150px; }
 }
+
+/* ============================================
+   COLLECTION PAGES (Liked Songs / Recently Played)
+   (main/library/liked.html, main/library/history.html)
+   ============================================ */
+.album-page .collection-cover {
+  width: 200px; height: 200px; flex: 0 0 auto;
+  border-radius: 10px; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 4rem;
+  border: 1px solid rgba(61, 165, 255, 0.14);
+}
+.album-page .collection-cover.liked {
+  background: linear-gradient(135deg, #ff3355, #7a1029);
+  color: #fff;
+}
+.album-page .collection-cover.history {
+  background: linear-gradient(135deg, #2f7d5c, #12332a);
+  color: #fff;
+}
+@media (max-width: 767.98px) {
+  .album-page .collection-cover { width: 150px; height: 150px; font-size: 3rem; }
+}
+
+/* ---- Like (heart) buttons — track cards + player bar ---- */
+.track-like-btn,
+.player-like-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 0;
+  padding: 2px 4px;
+  color: #fff;
+  font-size: .95rem;
+  line-height: 1;
+  opacity: .85;
+  cursor: pointer;
+  transition: transform .15s ease, color .15s ease, opacity .15s ease;
+}
+
+.track-like-btn:hover,
+.player-like-btn:hover {
+  color: #ff5a7d;
+  opacity: 1;
+  transform: scale(1.15);
+}
+
+.track-like-btn.is-liked,
+.player-like-btn.is-liked {
+  color: #ff3355;
+  opacity: 1;
+}
+
+.player-like-btn i { font-size: 1.1rem; }
+
+.player-like-btn:focus-visible { outline: 2px solid #1db954; outline-offset: 2px; }
+
+/* Sidebar links point at the standalone collection pages, so the old
+   in-page anchor offsets are no longer needed. */
+.scroll-mt-section {
+  scroll-margin-top: 12px;
+}
+
+/* ARTIST ALBUM dropdown + page */
+.artist-dropdown .artist-menu { max-height: 380px; overflow-y: auto; }
+.artist-dropdown .artist-item { cursor: pointer; }
+.artist-thumb { width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; object-fit: cover; border: 1px solid rgba(61,165,255,.25); }
+.artist-thumb-fallback { display: inline-flex; align-items: center; justify-content: center; background: rgba(61,165,255,.12); color: var(--neon-cyan); }
+.album-page .collection-cover.artist { background: linear-gradient(135deg, #3da5ff, #12365e); color: #fff; }
+#artistChips .btn { border-color: rgba(61,165,255,.35); }

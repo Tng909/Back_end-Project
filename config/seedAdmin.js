@@ -6,7 +6,9 @@ const User = require('../models/user');
 const seedAdmin = async () => {
   try {
     const adminEmail = String(process.env.ADMIN_EMAIL || 'truongtung4142@gmail.com').trim().toLowerCase();
-    const adminPass = 'AdminExPLE@$1';
+    // Password comes from env; the literal below is only a dev fallback so
+    // existing local setups keep working. Override via ADMIN_PASSWORD in .env.
+    const adminPass = process.env.ADMIN_PASSWORD || 'AdminExPLE@$1';
 
     const exists = await User.findOne({
       $or: [{ email: adminEmail }, { username: 'admin' }]

@@ -10,19 +10,31 @@ const GEMINI_MODEL = () => (process.env.GEMINI_MODEL || 'gemini-2.0-flash').trim
 function escapeRegExp(s) {
   return String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+// Strip any raw 24-char Mongo ObjectId (and a leading "id:" label) from text.
+// Used on the Gemini reply as defense-in-depth so a hallucinated id never
+// reaches the user. The playable card ids live only in the JSON `tracks` array.
+function scrubIds(text) {
+  return String(text || '')
+    .replace(/\(?\s*id:?\s*[a-f0-9]{24}\s*\)?/gi, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
 function stripDiacritics(s) {
   return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 function trackLine(t) {
-  return `- "${t.title}" by ${t.artist}${t.genre ? ` [${t.genre}]` : ''} (id: ${t._id})`;
+  // Human-readable line only — internal ids are never shown in chat text.
+  // (The playable card is sent separately in the JSON `tracks` array.)
+  return `- "${t.title}" by ${t.artist}${t.genre ? ` [${t.genre}]` : ''}`;
 }
-async function searchTracks(query, limit = 6) {
+function searchTracks(query, tracks, limit = 6) {
   const q = String(query || '').trim();
   if (!q) return [];
   const rx = new RegExp(escapeRegExp(q), 'i');
-  try {
-    return await Track.find({ $or: [{ title: rx }, { artist: rx }, { album: rx }, { genre: rx }] }).limit(limit).lean();
-  } catch (_) { return []; }
+  return tracks
+    .filter((track) => [track.title, track.artist, track.album, track.genre]
+      .some((value) => rx.test(String(value || ''))))
+    .slice(0, limit);
 }
 function pickRandom(arr, n) {
   const copy = [...arr];
@@ -44,11 +56,14 @@ const CHEESECAKE_REPLY = [
   '',
   'Now — want a song to bake to? Try "surprise me". 🎶',
 ].join('\n');
-async function answerLocal(message) {
+async function answerLocal(message, catalog, collectionLabel = '') {
   const raw = String(message || '').trim();
   const norm = stripDiacritics(raw.toLowerCase());
-  const allTracks = await Track.find({}).limit(200).lean();
+  const allTracks = catalog;
   if (!allTracks.length) {
+    if (collectionLabel) {
+      return { reply: `There are no songs in ${collectionLabel} yet.`, tracks: [] };
+    }
     return { reply: 'My music library is empty right now. Ask an admin to seed tracks, then ask me again!', tracks: [] };
   }
   if (/^(hi|hello|hey|yo|alo|chao|xin chao|good (morning|afternoon|evening))\b/.test(norm)) {
@@ -60,7 +75,7 @@ async function answerLocal(message) {
   // --- Account help: reset password / register / login (with page links) ---
   if (/(reset|forgot|quen mat khau|doi mat khau|mat khau|password)/.test(norm)) {
     return {
-      reply: 'Here\'s how to reset your password:\n1. Open the Login page and click "Forgot password?" (or go straight to the Reset Password page).\n2. Enter your Username or Email.\n3. Type your New Password + Confirm, then hit Update Password.\n4. You\'ll go back to Login — sign in with the new password.\nNo email code needed, it updates instantly.',
+      reply: 'Here\'s how to reset your password:\n1. Open the Reset Password page and enter your account email — we send you a reset link (valid 15 minutes).\n2. Click the link in the email (or paste the token).\n3. Type your New Password + Confirm, then hit Update Password.\n4. You\'ll go back to Login — sign in with the new password.',
       tracks: [],
       links: [
         { label: 'Open Reset Password page', url: 'verify/reset-password.html' },
@@ -112,7 +127,16 @@ async function answerLocal(message) {
     return { reply: `Artists in the library: ${artists.join(', ')}`, tracks: pickRandom(allTracks, 4) };
   }
   if (/(how many|count|bao nhieu).{0,20}(song|track|bai)/.test(norm)) {
-    return { reply: `There are ${allTracks.length} track(s) in the BOX MUSIC library.`, tracks: pickRandom(allTracks, 3) };
+    const place = collectionLabel || 'the BOX MUSIC library';
+    return { reply: `There are ${allTracks.length} track(s) in ${place}.`, tracks: pickRandom(allTracks, 3) };
+  }
+  if (collectionLabel && /\b(list|show|which|what)\b/.test(norm)
+    && /\b(song|songs|track|tracks|playlist|album|liked|history)\b/.test(norm)) {
+    const listed = allTracks.slice(0, 6);
+    return {
+      reply: `Here are the songs in ${collectionLabel}:\n${listed.map(trackLine).join('\n')}`,
+      tracks: listed
+    };
   }
   if (/(surprise|random|goi y|recommend|suggest|something to listen|nhac hay|chill|buon|vui)/.test(norm) && norm.length < 80) {
     const genres = [...new Set(allTracks.map((t) => (t.genre || '').toLowerCase()).filter(Boolean))];
@@ -123,7 +147,7 @@ async function answerLocal(message) {
   const likeMatch = raw.match(/(?:like|similar to|giong|tuong tu)\s+(.+)/i);
   if (/(recommend|suggest|similar|giong|like)/.test(norm) && likeMatch) {
     const seed = likeMatch[1].replace(/["'?.!]+$/g, '').trim();
-    const found = await searchTracks(seed, 3);
+    const found = searchTracks(seed, allTracks, 3);
     if (found.length) {
       const s0 = found[0];
       const similar = allTracks.filter((t) => String(t._id) !== String(s0._id) && ((s0.genre && t.genre === s0.genre) || (s0.artist && t.artist === s0.artist)));
@@ -134,7 +158,7 @@ async function answerLocal(message) {
   const searchMatch = raw.match(/(?:find|search|tim|play|phat|nghe)\s+(.+)/i);
   if (searchMatch) {
     const q = searchMatch[1].replace(/["'?.!]+$/g, '').trim();
-    const hits = await searchTracks(q, 6);
+    const hits = searchTracks(q, allTracks, 6);
     if (hits.length) return { reply: `Found ${hits.length} result(s) for "${q}":\n${hits.map(trackLine).join('\n')}\n\nTap a card below to open & play.`, tracks: hits };
     return { reply: `Nothing found for "${q}". Try an artist, a title word, or "surprise me".`, tracks: pickRandom(allTracks, 3) };
   }
@@ -151,7 +175,7 @@ async function answerLocal(message) {
   }
   const words = norm.split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !['what', 'the', 'and', 'for', 'with', 'song', 'songs', 'music', 'track', 'please', 'how', 'reset', 'password', 'forgot', 'account', 'login', 'register'].includes(w));
   for (const w of words.slice(0, 4)) {
-    const hits = await searchTracks(w, 5);
+    const hits = searchTracks(w, allTracks, 5);
     if (hits.length) return { reply: `Here's what I found related to "${w}":`, tracks: hits };
   }
   // Off-topic catch-all: anything unrecognized earns the cheesecake recipe.
@@ -166,10 +190,11 @@ async function callGemini(userMessage, history, libraryContext) {
     'You are "Boxie", the popup-chat assistant of BOX MUSIC.',
     'Reply concisely (under 120 words), friendly.',
     'Recommend ONLY songs from the library context. Never invent IDs.',
+    'Never reveal internal database/object IDs in your reply — the song cards handle that.',
     'If not about music, answer helpfully in 1-3 sentences.',
     'OFF-TOPIC RULE: if the question is NOT about music, this app, accounts, or help — reply EXACTLY with the single word CHEESECAKE and nothing else (the server swaps in the recipe).',
     'ACCOUNT HELP (use these exact steps, never invent other flows):',
-    '- Reset password: Login page > "Forgot password?" (or verify/reset-password.html) > enter Username or Email > New Password + Confirm > Update Password > back to Login. No email code needed. API: POST /api/auth/reset-password {identifier, newPassword}.',
+    '- Reset password: reset-password.html > enter account email > open the emailed reset link (15 min) > New Password + Confirm > Update Password > back to Login. API: POST /api/auth/forgot-password {email} then POST /api/auth/reset-password {token, newPassword}.',
     '- Register: verify/register.html > fill full name, username, email, phone, password+confirm > submit > click "Verify My Account" email link within 20 min > login.',
     '- Login: verify/login.html > username/email + password > Login.',
     '--- LIBRARY ---',
@@ -202,16 +227,39 @@ exports.chat = async (req, res) => {
     const history = Array.isArray(req.body?.history) ? req.body.history : [];
     if (!message) return res.status(400).json({ error: 'Message is required.' });
     if (message.length > 1000) return res.status(400).json({ error: 'Message too long.' });
-    const local = await answerLocal(message);
+    const library = req.body?.library;
+    const sourceLabels = {
+      playlist: 'this playlist',
+      liked: 'your liked songs',
+      history: 'your listening history',
+      artist: 'this artist list'
+    };
+    const collectionLabel = Object.prototype.hasOwnProperty.call(sourceLabels, library?.source)
+      ? sourceLabels[library.source]
+      : '';
+    let catalog;
+    if (collectionLabel && Array.isArray(library.trackIds)) {
+      const ids = [...new Set(library.trackIds.slice(0, 100)
+        .filter((id) => typeof id === 'string' && /^[a-f\d]{24}$/i.test(id)))];
+      const tracks = ids.length ? await Track.find({ _id: { $in: ids } }).lean() : [];
+      const byId = new Map(tracks.map((track) => [String(track._id), track]));
+      catalog = ids.map((id) => byId.get(id)).filter(Boolean);
+    } else {
+      catalog = await Track.find({}).limit(200).lean();
+    }
+    const local = await answerLocal(message, catalog, collectionLabel);
+    if (collectionLabel && !catalog.length) {
+      return res.json({ reply: local.reply, tracks: [], links: [], source: 'local' });
+    }
     // Off-topic easter egg: cheesecake answers bypass the cloud brain on purpose.
     if (local.tag === 'cheesecake') {
       return res.json({ reply: local.reply, tracks: [], links: [], source: 'cheesecake' });
     }
     if (GEMINI_API_KEY()) {
       try {
-        const snap = await Track.find({}).select('title artist genre album').lean().limit(60);
-        const ctx = snap.map((t) => `- "${t.title}" by ${t.artist}${t.genre ? ` [${t.genre}]` : ''}`).join('\n');
-        const smartReply = await callGemini(message, history, ctx);
+        const ctx = catalog.slice(0, 60)
+          .map((t) => `- "${t.title}" by ${t.artist}${t.genre ? ` [${t.genre}]` : ''}`).join('\n');
+        const smartReply = scrubIds(await callGemini(message, history, ctx));
         if (/^\s*cheesecake\s*[.!]?\s*$/i.test(smartReply)) {
           return res.json({ reply: CHEESECAKE_REPLY, tracks: [], links: [], source: 'cheesecake' });
         }
@@ -227,3 +275,6 @@ exports.chat = async (req, res) => {
 exports.suggestions = async (req, res) => {
   res.json({ suggestions: ['Surprise me', 'Recommend pop songs', 'Find Billie Jean', 'What genres do you have?', 'How many songs are there?', 'Cheesecake recipe 🍰', 'Help'] });
 };
+
+// Exported for unit tests (defense-in-depth: keeps raw ids out of chat prose).
+exports.scrubIds = scrubIds;

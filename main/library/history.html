@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recently Played — BOX MUSIC</title>
+  <link rel="icon" type="image/jpeg" href="../Image/Logo.jpg" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <link href="../style.css" rel="stylesheet" />
+  <link href="../boxie.css" rel="stylesheet" />
+</head>
+<body class="bg-black text-white d-flex flex-column app-shell album-page" style="min-height:100vh;">
+
+  <!-- Top bar -->
+  <header class="d-flex align-items-center gap-3 px-3 px-md-4 py-3 border-bottom border-secondary border-opacity-25 bg-dark">
+    <a href="../Main.html" class="btn btn-link text-secondary p-0 border-0 text-decoration-none d-flex align-items-center gap-2" title="Back to Home">
+      <i class="fa-solid fa-arrow-left fs-5"></i><span class="d-none d-sm-inline small">Back</span>
+    </a>
+    <a href="../Main.html" class="d-flex align-items-center gap-2 text-success fs-5 fw-bold text-decoration-none">
+      <img src="../Image/Logo.jpg" alt="Logo" class="app-logo" />
+      <span class="text-white">BOX MUSIC</span>
+    </a>
+    <div class="ms-auto">
+      <button id="clearHistoryBtn" class="btn btn-outline-secondary btn-sm rounded-pill px-3 d-none" type="button">
+        <i class="fa-solid fa-trash-can me-1"></i>Clear history
+      </button>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="album-hero px-3 px-md-5 py-4 d-flex flex-column flex-sm-row align-items-sm-end gap-4 bg-gradient-dark">
+    <div class="collection-cover history shadow-lg" aria-hidden="true">
+      <i class="fa-solid fa-clock-rotate-left"></i>
+    </div>
+    <div class="flex-grow-1 min-w-0 text-center text-sm-start">
+      <div class="uppercase style-subtext text-secondary fw-semibold mb-1" style="letter-spacing:.15em;">Playlist</div>
+      <h1 class="fw-bold text-white mb-2 lh-1 album-title">Recently Played</h1>
+      <p class="text-secondary mb-2 style-subtext album-desc">Songs you played recently — tap any one to listen again.</p>
+      <div class="d-flex align-items-center gap-3 flex-wrap justify-content-center justify-content-sm-start">
+        <span class="badge bg-success-subtle text-success rounded-pill px-3" id="listCount">0 songs</span>
+      </div>
+      <div class="d-flex align-items-center gap-3 mt-3">
+        <button id="playAllBtn" class="btn btn-success rounded-circle d-flex align-items-center justify-content-center p-0 shadow" style="width:56px;height:56px;" title="Play history" disabled>
+          <i class="fa-solid fa-play fs-5"></i>
+        </button>
+        <button id="shuffleAllBtn" class="btn btn-outline-light rounded-circle d-flex align-items-center justify-content-center p-0" style="width:44px;height:44px;" title="Shuffle history" disabled>
+          <i class="fa-solid fa-shuffle"></i>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Track grid -->
+  <main class="flex-grow-1 overflow-auto bg-gradient-dark px-3 px-md-5 py-4 app-main" id="listMain">
+    <div id="listLoading" class="text-center text-secondary py-5">
+      <div class="spinner-border spinner-border-sm me-2" role="status"></div> Loading your history…
+    </div>
+    <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 row-cols-xl-6 g-3" id="trackGrid"></div>
+    <div id="listEmpty" class="text-center text-secondary py-5 d-none">
+      <i class="fa-solid fa-clock-rotate-left fs-1 mb-3 d-block"></i>
+      No listening history yet. Play any song and it will show up here.
+    </div>
+  </main>
+
+  <button id="boxieFab" class="boxie-fab" type="button" aria-label="Chat with Boxie AI" aria-expanded="false">
+    <i class="fa-solid fa-robot" aria-hidden="true"></i><span id="boxiePing" class="boxie-ping d-none"></span>
+  </button>
+  <section id="boxiePanel" class="boxie-panel d-none" aria-label="Boxie AI chat" role="dialog" aria-modal="false">
+    <header class="boxie-head">
+      <div class="boxie-identity"><span class="boxie-avatar"><i class="fa-solid fa-robot"></i></span><div><strong>Boxie AI</strong><small id="boxieStatus" class="boxie-status"><span class="boxie-dot"></span>online</small></div></div>
+      <div class="d-flex gap-1">
+        <button id="boxieClear" class="boxie-icon-btn" type="button" title="Clear chat"><i class="fa-solid fa-trash-can"></i></button>
+        <button id="boxieClose" class="boxie-icon-btn" type="button" title="Close chat"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </header>
+    <div id="boxieMsgs" class="boxie-msgs" aria-live="polite"></div><div id="boxieChips" class="boxie-chips"></div>
+    <form id="boxieForm" class="boxie-form" autocomplete="off">
+      <input id="boxieInput" class="boxie-input" type="text" maxlength="1000" placeholder="Ask Boxie... (e.g. find Billie Jean)" aria-label="Message Boxie">
+      <button class="boxie-send" type="submit" aria-label="Send"><i class="fa-solid fa-paper-plane"></i></button>
+    </form>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="../player.js"></script>
+  <script src="../boxie.js?v=20261020-2"></script>
+  <script src="collection-common.js"></script>
+  <script src="history.js"></script>
+</body>
+</html>

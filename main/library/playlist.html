@@ -8,6 +8,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
   <link href="../style.css" rel="stylesheet" />
+  <link href="../boxie.css" rel="stylesheet" />
 </head>
 <body class="bg-black text-white d-flex flex-column app-shell album-page" style="min-height:100vh;">
 
@@ -104,8 +105,32 @@
     </div>
   </div>
 
+  <button id="boxieFab" class="boxie-fab" type="button" aria-label="Chat with Boxie AI" aria-expanded="false">
+    <i class="fa-solid fa-robot" aria-hidden="true"></i>
+    <span id="boxiePing" class="boxie-ping d-none"></span>
+  </button>
+  <section id="boxiePanel" class="boxie-panel d-none" aria-label="Boxie AI chat" role="dialog" aria-modal="false">
+    <header class="boxie-head">
+      <div class="boxie-identity">
+        <span class="boxie-avatar"><i class="fa-solid fa-robot"></i></span>
+        <div><strong>Boxie AI</strong><small id="boxieStatus" class="boxie-status"><span class="boxie-dot"></span>online</small></div>
+      </div>
+      <div class="d-flex gap-1">
+        <button id="boxieClear" class="boxie-icon-btn" type="button" title="Clear chat"><i class="fa-solid fa-trash-can"></i></button>
+        <button id="boxieClose" class="boxie-icon-btn" type="button" title="Close chat"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </header>
+    <div id="boxieMsgs" class="boxie-msgs" aria-live="polite"></div>
+    <div id="boxieChips" class="boxie-chips"></div>
+    <form id="boxieForm" class="boxie-form" autocomplete="off">
+      <input id="boxieInput" class="boxie-input" type="text" maxlength="1000" placeholder="Ask Boxie... (e.g. find Billie Jean)" aria-label="Message Boxie">
+      <button class="boxie-send" type="submit" aria-label="Send"><i class="fa-solid fa-paper-plane"></i></button>
+    </form>
+  </section>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="../player.js"></script>
+  <script src="../boxie.js?v=20261020-2"></script>
   <script>
     (function () {
       'use strict';
@@ -127,6 +152,16 @@
       const $ = (id) => document.getElementById(id);
       const grid = $('trackGrid');
 
+      // Server requires a logged-in owner for playlist edits — attach JWT.
+      function authHeaders(extra = {}) {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          window.location.href = '../verify/login.html?message=' + encodeURIComponent('Please log in to edit this album.');
+          throw new Error('Login required.');
+        }
+        return { Authorization: `Bearer ${token}`, ...extra };
+      }
+
       async function load() {
         if (!playlistId) { $('albumTitle').textContent = 'Album not found'; return; }
         try {
@@ -143,6 +178,7 @@
       }
 
       function render() {
+        window.Boxie.setLibrary('playlist', tracks);
         document.title = (playlist.name || 'Album') + ' — BOX MUSIC';
         $('albumTitle').textContent = playlist.name || 'Untitled album';
         $('albumDesc').textContent = playlist.description || '';
@@ -213,7 +249,7 @@
         if (!name) { alert('Album name is required'); return; }
         try {
           const res = await fetch('/api/playlists/' + encodeURIComponent(playlistId), {
-            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            method: 'PUT', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ name, description })
           });
           if (!res.ok) throw new Error('Save failed');
@@ -227,7 +263,7 @@
       async function removeTrack(trackId) {
         if (!confirm('Remove this song from the album?')) return;
         try {
-          const res = await fetch('/api/playlists/' + encodeURIComponent(playlistId) + '/tracks/' + encodeURIComponent(trackId), { method: 'DELETE' });
+          const res = await fetch('/api/playlists/' + encodeURIComponent(playlistId) + '/tracks/' + encodeURIComponent(trackId), { method: 'DELETE', headers: authHeaders() });
           if (!res.ok) throw new Error('Remove failed');
           playlist = await res.json();
           tracks = (playlist.tracks || []).filter(Boolean);
@@ -279,7 +315,7 @@
         row.style.opacity = '0.4';
         try {
           const res = await fetch('/api/playlists/' + encodeURIComponent(playlistId) + '/tracks', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ tracks: [id] })
           });
           if (!res.ok) throw new Error('Add failed');

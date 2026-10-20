@@ -22,13 +22,18 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-// Admin-only path guard: valid JWT + role === 'admin'.
-// The admin's seed password is bcrypt-hashed (see config/seedAdmin.js),
-// so reaching here proves the caller passed the bcrypt password check at login.
+// Check the current database role so an old token cannot keep admin access
+// after the account is demoted or deleted.
 const verifyAdmin = (req, res, next) => {
   verifyToken(req, res, () => {
-    if (req.user.role === 'admin') next();
-    else res.status(403).json({ error: 'Access denied. Admin role required.' });
+    User.findOne({ _id: req.user._id, role: 'admin' })
+      .select('_id')
+      .lean()
+      .then((admin) => {
+        if (admin) return next();
+        return res.status(403).json({ error: 'Access denied. Admin role required.' });
+      })
+      .catch(next);
   });
 };
 

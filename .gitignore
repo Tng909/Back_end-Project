@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-package-lock.json
+# NOTE: package-lock.json MUST be committed (reproducible installs).
 
 # Env / secrets
 .env

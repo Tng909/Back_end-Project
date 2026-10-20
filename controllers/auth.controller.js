@@ -1,9 +1,16 @@
 const User = require('../models/user');
+const Favorite = require('../models/favorite');
+const History = require('../models/history');
+const Playlist = require('../models/playlist');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { sendWelcomeEmail, sendTestEmail } = require('../utils/sendEmail');
 const { loadKeys } = require('../config/jwtKeys');
+
+// Cached throwaway bcrypt hash used to equalize login timing when the account
+// does not exist (anti user-enumeration). Computed once, on first use.
+let loginDummyHashPromise = null;
 
 exports.register = async (req, res) => {
     try {
@@ -156,13 +163,17 @@ exports.login = async (req, res) => {
                 : { $or: [{ email: exactCI(identifier) }, { username: identifier }] }
         );
 
-        if (!user) return res.status(400).json({
-            error: 'User not found.'
-        });
-
-        const validPass = await bcrypt.compare(password, user.password);
-        if (!validPass) return res.status(400).json({
-            error: 'Invalid password.'
+        // Same status + message for "no such user" and "wrong password" so
+        // attackers cannot probe which accounts exist (user enumeration).
+        // When the user is missing we still run one bcrypt.compare against a
+        // throwaway hash so both branches take similar time (timing safety).
+        if (!loginDummyHashPromise) loginDummyHashPromise = bcrypt.hash('timing-equalizer', 10);
+        const dummyHash = await loginDummyHashPromise;
+        const validPass = user
+            ? await bcrypt.compare(password, user.password)
+            : await bcrypt.compare(password, dummyHash);
+        if (!user || !validPass) return res.status(401).json({
+            error: 'Invalid username/email or password.'
         });
 
         // Gate login until email verify button clicked (except admins).
@@ -357,6 +368,13 @@ exports.deleteUserByAdmin = async (req, res) => {
         }
         const deleted = await User.findByIdAndDelete(req.params.id);
         if (!deleted) return res.status(404).json({ error: 'User not found.' });
+        // Referential integrity: remove the deleted user's favorites, play
+        // history, and playlists so no orphaned documents are left behind.
+        await Promise.all([
+            Favorite.deleteMany({ user: deleted._id }),
+            History.deleteMany({ user: deleted._id }),
+            Playlist.deleteMany({ user: deleted._id })
+        ]);
         res.json({ message: 'User deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -421,43 +439,97 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
-exports.resetPassword = async (req, res) => {
+exports.forgotPassword = async (req, res) => {
     try {
-        let {
-            identifier,
-            newPassword
-        } = req.body;
-
-        if (!identifier || !newPassword) {
-            return res.status(400).json({ error: 'Identifier and new password required.' });
+        const { sendResetEmail } = require('../utils/sendEmail');
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+            return res.status(400).json({ error: 'Valid email required.' });
         }
+        const user = await User.findOne({ email });
+        // Always return generic message to avoid user enumeration.
+        if (!user) return res.json({ message: 'If this email exists, a reset link was sent (15 minutes valid).' });
 
-        identifier = String(identifier).trim();
-        if (!identifier) return res.status(404).json({ error: 'User not found.' });
-        const looksLikeEmail = identifier.includes('@');
-        const escapeRegex2 = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const exactCI2 = (s) => ({ $regex: `^${escapeRegex2(s)}$`, $options: 'i' });
-
-        const user = await User.findOne(
-            looksLikeEmail
-                ? { $or: [{ email: exactCI2(identifier) }, { username: exactCI2(identifier) }] }
-                : { $or: [{ email: exactCI2(identifier) }, { username: identifier }] }
+        // RS256-signed reset token (same key pair as register/login), 15m expiry.
+        const { privateKey } = loadKeys();
+        if (!privateKey) return res.status(500).json({ error: 'RS256 private key not configured.' });
+        const rawToken = jwt.sign(
+            { email, type: 'password-reset' },
+            privateKey,
+            { algorithm: 'RS256', expiresIn: '15m' }
         );
-
-        if (!user) return res.status(404).json({
-            error: 'User not found.'
-        });
-
-        const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(newPassword, salt);
+        // Store hash of the FULL token: makes it single-use (new request rotates
+        // the hash, old links die) even though the JWT itself would stay valid.
+        const hash = crypto.createHash('sha256').update(rawToken).digest('hex');
+        user.resetPasswordTokenHash = hash;
+        user.resetPasswordTokenExpires = new Date(Date.now() + 15 * 60 * 1000);
         await user.save();
 
-        res.json({
-            message: 'Password updated successfully.'
-        });
+        const appUrl = String(process.env.APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/+$/, '');
+        const resetUrl = `${appUrl}/verify/reset-password.html?token=${encodeURIComponent(rawToken)}`;
+        const mail = await sendResetEmail(email, resetUrl);
+
+        // Dev fallback: if SMTP not configured, expose token so flow still testable.
+        if (!mail.sent) {
+            console.log(`[Mail] Reset link fallback for ${email}: token generated (RS256).`);
+            if (process.env.NODE_ENV !== 'production') {
+                return res.json({ message: 'Reset link generated (email not configured — dev token returned).', devToken: rawToken, resetUrl });
+            }
+            return res.json({ message: 'If this email exists, a reset link was sent (15 minutes valid).' });
+        }
+        res.json({ message: `Reset link sent to ${email} — valid for 15 minutes.` });
     } catch (err) {
-        res.status(500).json({
-            error: err.message
-        });
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.resetPassword = async (req, res) => {
+    try {
+        const { token, newPassword, confirmPassword } = req.body || {};
+
+        // Legacy path: identifier+newPassword without token — BLOCKED (account takeover risk).
+        if (!token) {
+            return res.status(400).json({ error: 'Reset token required. Use Forgot Password to get a reset link sent to your email.' });
+        }
+        if (!newPassword) return res.status(400).json({ error: 'New password required.' });
+        if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+            return res.status(400).json({ error: 'Passwords do not match.' });
+        }
+        if (String(newPassword).length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+        }
+
+        // 1) Verify RS256 signature + type (public key only — same scheme as login).
+        const { publicKey } = loadKeys();
+        if (!publicKey) return res.status(500).json({ error: 'RS256 public key not configured.' });
+        let payload;
+        try {
+            payload = jwt.verify(String(token), publicKey, { algorithms: ['RS256'] });
+        } catch (_) {
+            return res.status(400).json({ error: 'Reset link expired or invalid. Request a new one.' });
+        }
+        if (!payload || payload.type !== 'password-reset' || !payload.email) {
+            return res.status(400).json({ error: 'Invalid reset token.' });
+        }
+
+        // 2) Single-use check: stored hash must equal hash(token) and not be expired.
+        const hash = crypto.createHash('sha256').update(String(token)).digest('hex');
+        const user = await User.findOne({
+            email: String(payload.email).toLowerCase(),
+            resetPasswordTokenHash: hash,
+            resetPasswordTokenExpires: { $gt: new Date() }
+        }).select('+resetPasswordTokenHash +resetPasswordTokenExpires');
+
+        if (!user) return res.status(400).json({ error: 'Reset link expired or invalid. Request a new one.' });
+
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(String(newPassword), salt);
+        user.resetPasswordTokenHash = undefined;
+        user.resetPasswordTokenExpires = undefined;
+        await user.save();
+
+        res.json({ message: 'Password updated successfully. Please log in.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 };

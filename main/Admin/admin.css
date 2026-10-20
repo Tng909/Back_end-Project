@@ -467,3 +467,6 @@ label {
     grid-template-columns: 1fr
   }
 }
+body:not(.admin-authorized) {
+    visibility: hidden;
+}

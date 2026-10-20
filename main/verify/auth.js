@@ -256,32 +256,73 @@ if (regForm) {
   });
 }
 
-// 3. RESET PASSWORD
+// 3. RESET PASSWORD (secure 2-step: request email link -> use token)
+// Step A: no ?token= -> show the "send reset link" form.
+// Step B: ?token= from the email link -> show the new-password form directly.
+const forgotForm = document.getElementById('forgotForm');
 const resetForm = document.getElementById('resetForm');
-if (resetForm) {
-  resetForm.addEventListener('submit', async (e) => {
+const urlToken = new URLSearchParams(window.location.search).get('token') || '';
+
+if (forgotForm || resetForm) {
+  if (urlToken) {
+    // Arrived via emailed link — straight to setting the new password.
+    if (forgotForm) forgotForm.classList.add('d-none');
+    if (resetForm) {
+      resetForm.classList.remove('d-none');
+      document.getElementById('resetToken').value = urlToken;
+      showNotice('Reset link verified in URL. Choose a new password (link expires in 15 minutes).');
+    }
+  } else if (forgotForm) {
+    // No token yet — ask for the account email first.
+    forgotForm.classList.remove('d-none');
+    showNotice('Enter your account email and we\'ll send a reset link (valid for 15 minutes).');
+  }
+
+  forgotForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const email = document.getElementById('forgotEmail').value.trim();
+    try {
+      const r = await fetch(`${API_URL}/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const d = await parseJsonSafe(r);
+      if (!r.ok) throw new Error(d.error || 'Could not send reset link.');
+      showOk(d.message || 'If this email exists, a reset link was sent.');
+      // Dev mode: SMTP not configured -> server returns devToken/resetUrl.
+      if (d.devToken && resetForm) {
+        forgotForm.classList.add('d-none');
+        resetForm.classList.remove('d-none');
+        document.getElementById('resetToken').value = d.devToken;
+        showOk('Email not configured — token auto-filled for development.');
+      }
+    } catch (err) {
+      showError(err.message);
+    }
+  });
+
+  resetForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const token = document.getElementById('resetToken').value.trim();
     const newPass = document.getElementById('resetPassword').value;
     const confirmPass = document.getElementById('resetConfirmPassword').value;
 
-    if (newPass !== confirmPass) {
-      return showError('New passwords do not match.');
-    }
+    if (!token) return showError('Reset token is required. Request a new link first.');
+    if (newPass !== confirmPass) return showError('New passwords do not match.');
+    if (newPass.length < 6) return showError('Password must be at least 6 characters.');
 
     try {
       const res = await fetch(`${API_URL}/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier: document.getElementById('resetIdentifier').value,
-          newPassword: newPass
-        })
+        body: JSON.stringify({ token, newPassword: newPass, confirmPassword: confirmPass })
       });
 
-      const data = await res.json();
+      const data = await parseJsonSafe(res);
       if (!res.ok) throw new Error(data.error || 'Reset failed');
 
-      alert('Password updated successfully. Please login.');
+      alert(data.message || 'Password updated successfully. Please login.');
       window.location.href = 'login.html';
     } catch (err) {
       showError(err.message);

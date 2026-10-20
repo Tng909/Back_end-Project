@@ -16,6 +16,13 @@
   let history = [];
   let opened = false;
   let busy = false;
+  const scopedPage = {
+    '/library/playlist.html': 'playlist',
+    '/library/liked.html': 'liked',
+    '/library/history.html': 'history',
+    '/library/artist.html': 'artist'
+  }[window.location.pathname];
+  let library = scopedPage ? { source: scopedPage, trackIds: [] } : null;
 
   try {
     const saved = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
@@ -84,7 +91,11 @@
       const res = await fetch(API_BASE + '/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history: history.slice(-10) }),
+        body: JSON.stringify({
+          message: text,
+          history: history.slice(-10),
+          ...(library ? { library } : {})
+        }),
       });
       const data = await res.json().catch(() => ({}));
       untyping();
@@ -136,8 +147,24 @@
   msgs.addEventListener('click', (e) => {
     const card = e.target.closest('.boxie-track');
     if (!card || !card.dataset.id) return;
-    window.location.href = 'track.html?id=' + encodeURIComponent(card.dataset.id);
+    const trackUrl = new URL('/track.html', window.location.origin);
+    trackUrl.searchParams.set('id', card.dataset.id);
+    window.location.href = trackUrl.toString();
   });
+  window.Boxie = {
+    setLibrary(source, tracks) {
+      if (!['playlist', 'liked', 'history', 'artist'].includes(source)) {
+        throw new Error(`Unsupported Boxie library source: ${source}`);
+      }
+      library = {
+        source,
+        trackIds: (Array.isArray(tracks) ? tracks : [])
+          .map((track) => String(track?._id || ''))
+          .filter((id) => /^[a-f\d]{24}$/i.test(id))
+          .slice(0, 100)
+      };
+    }
+  };
   fab.addEventListener('click', () => setOpen(!opened));
   closeBtn?.addEventListener('click', () => setOpen(false));
   clearBtn?.addEventListener('click', () => {

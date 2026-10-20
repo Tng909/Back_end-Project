@@ -10,6 +10,9 @@
 
   const STORAGE_KEY = 'boxMusicPlayerState';
   const VOLUME_KEY = 'boxMusicVolume';
+  // Same-origin API endpoints (works on /, /track.html and /library/...).
+  const FAV_API = `${window.location.origin}/api/favorites`;
+  const HISTORY_API = `${window.location.origin}/api/history`;
 
   const audio = new Audio();
   audio.preload = 'metadata';
@@ -51,6 +54,7 @@
       cover: document.getElementById('playerCover'),
       title: document.getElementById('playerTitle'),
       artist: document.getElementById('playerArtist'),
+      like: document.getElementById('playerLikeBtn'),
       play: document.getElementById('playBtn'),
       prev: document.getElementById('prevBtn'),
       next: document.getElementById('nextBtn'),
@@ -69,9 +73,14 @@
     <!-- Now Playing -->
     <div class="d-flex align-items-center gap-3 player-track">
       <img id="playerCover" src="https://picsum.photos/seed/placeholder/60/60" class="rounded player-cover" width="56" height="56" alt="Cover">
-      <div class="text-truncate player-meta">
-        <div id="playerTitle" class="fw-semibold text-truncate small">Select Track</div>
-        <div id="playerArtist" class="text-secondary text-truncate style-subtext"></div>
+      <div class="d-flex align-items-center gap-2 text-truncate player-meta">
+        <div class="text-truncate flex-grow-1 min-w-0">
+          <div id="playerTitle" class="fw-semibold text-truncate small">Select Track</div>
+          <div id="playerArtist" class="text-secondary text-truncate style-subtext"></div>
+        </div>
+        <button id="playerLikeBtn" class="player-like-btn" type="button" aria-label="Add to Liked Songs" title="Add to Liked Songs" aria-pressed="false">
+          <i class="fa-regular fa-heart"></i>
+        </button>
       </div>
     </div>
 
@@ -122,6 +131,96 @@
       : '<i class="fa-solid fa-play text-dark"></i>';
   }
 
+  /* ---------- Favorites (like button next to the track name) ---------- */
+  function authHeaders(json = true) {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const headers = { Authorization: `Bearer ${token}` };
+    if (json) headers['Content-Type'] = 'application/json';
+    return headers;
+  }
+
+  function setLikeIcon(liked, trackId) {
+    if (!els.like) return;
+    els.like.innerHTML = liked
+      ? '<i class="fa-solid fa-heart"></i>'
+      : '<i class="fa-regular fa-heart"></i>';
+    els.like.classList.toggle('is-liked', liked);
+    els.like.setAttribute('aria-pressed', String(liked));
+    const label = liked ? 'Remove from Liked Songs' : 'Add to Liked Songs';
+    els.like.setAttribute('aria-label', label);
+    els.like.setAttribute('title', label);
+    els.like.dataset.trackId = trackId || '';
+  }
+
+  // Ask the server whether the current track is liked and paint the heart.
+  async function refreshLikeState(track) {
+    const trackId = track && track._id;
+    if (!trackId) return;
+    if (!authHeaders(false)) { setLikeIcon(false, trackId); return; }
+    try {
+      const res = await fetch(`${FAV_API}/check/${trackId}`, { headers: authHeaders(false) });
+      if (!res.ok) return;
+      const data = await res.json();
+      // Paint the heart honestly: filled red = already liked, outline = new.
+      setLikeIcon(Boolean(data.favorited), trackId);
+    } catch { /* offline/API hiccup — leave icon as-is */ }
+  }
+
+  async function toggleLike() {
+    const track = current();
+    const trackId = track && track._id;
+    if (!trackId) return;
+    if (!authHeaders(false)) {
+      // Not logged in: send the user to login (same pattern as the admin pages).
+      window.location.href = `${window.location.origin}/verify/login.html`;
+      return;
+    }
+    const liked = els.like && els.like.classList.contains('is-liked');
+    try {
+      const res = await fetch(`${FAV_API}/${trackId}`, {
+        method: liked ? 'DELETE' : 'POST',
+        headers: authHeaders(false)
+      });
+      if (!res.ok) throw new Error(`API ${res.status}`);
+      setLikeIcon(!liked, trackId);
+      // Let the Home page refresh its "Liked Songs" grid without a reload.
+      document.dispatchEvent(new CustomEvent('favorites-changed', { detail: { trackId, liked: !liked } }));
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    }
+  }
+
+  // Another part of the page (a track card heart) toggled the favorite —
+  // keep the player-bar heart in sync with the current track.
+  document.addEventListener('favorites-changed', (e) => {
+    const detail = e && e.detail;
+    const track = current();
+    const trackId = track && track._id;
+    if (!trackId) return;
+    if (detail && detail.trackId) {
+      if (String(detail.trackId) !== String(trackId)) return;
+      setLikeIcon(Boolean(detail.liked), trackId);
+    } else {
+      refreshLikeState(track);
+    }
+  });
+
+  /* ---------- Play history (recorded once per track play) ------------- */
+  // Key of the track already recorded for this "session segment": reset on
+  // every track change so pause/resume/seek don't spam duplicate entries.
+  let lastRecordedPlay = null;
+
+  function recordPlay(track) {
+    const trackId = track && track._id;
+    if (!trackId || trackId === lastRecordedPlay || !authHeaders(false)) return;
+    lastRecordedPlay = trackId;
+    // Fire-and-forget: history must never block or fail actual playback.
+    fetch(`${HISTORY_API}/${trackId}`, { method: 'POST', headers: authHeaders(false) })
+      .then(() => document.dispatchEvent(new CustomEvent('history-changed')))
+      .catch(() => {});
+  }
+
   function current() { return queue[index] || null; }
 
   function loadIndex(i, keepShuffle) {
@@ -136,7 +235,9 @@
     if (els.curr) els.curr.textContent = '0:00';
     if (els.total) els.total.textContent = '0:00';
     if (els.seek) els.seek.value = 0;
+    lastRecordedPlay = null; // a NEW track may be recorded again
     saveState();
+    refreshLikeState(t);
     emit('trackchange', t);
   }
 
@@ -146,6 +247,7 @@
     audio.play().catch(() => {});
     isPlaying = true;
     setPlayIcon();
+    recordPlay(t);
     emit('play', t);
   }
 
@@ -220,6 +322,7 @@
 
   function wire() {
     els.play && els.play.addEventListener('click', toggle);
+    els.like && els.like.addEventListener('click', toggleLike);
     els.prev && els.prev.addEventListener('click', () => step(-1));
     els.next && els.next.addEventListener('click', () => step(1));
     els.prevSong && els.prevSong.addEventListener('click', () => step(-1));

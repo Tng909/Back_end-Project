@@ -1,0 +1,70 @@
+# Render Blueprint — Online Music backend
+# Deploys: web service (autoscaled) + Render Key Value (Redis-compatible cache).
+# Setup: Render Dashboard > New > Blueprint > pick this repo.
+# Secrets that must be set manually (Dashboard > Environment, or mark sync:false below):
+#   MONGO_URI, JWT_PRIVATE_KEY / JWT_PUBLIC_KEY, ADMIN_PASSWORD, MAIL_*, GEMINI_API_KEY
+services:
+  - type: web
+    name: online-music-api
+    runtime: node
+    plan: starter              # starter+ required for autoscaling (min>1 / >1 instance)
+    region: singapore          # change to the region nearest your users
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health   # 503 until MongoDB is up -> LB stops routing there
+
+    # --- Auto scaling ---------------------------------------------------------
+    # Scale between 1 and 3 instances on CPU. NOT compatible with a `disk:`
+    # block (disks pin a service to one instance) — that is why uploads must go
+    # to object storage / CDN_BASE_URL once you scale past 1 instance.
+    scaling:
+      minInstances: 1
+      maxInstances: 3
+      targetCPUPercent: 70
+      targetMemoryPercent: 75
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000           # Render's default listen port
+      - key: MONGO_URI
+        sync: false            # set in dashboard (Atlas / Render MongoDB)
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: online-music-cache
+          property: connectionString
+      - key: APP_URL
+        sync: false            # e.g. https://online-music-api.onrender.com
+      - key: CORS_ORIGIN
+        sync: false            # frontend origin(s), comma-separated
+      - key: CDN_BASE_URL
+        sync: false            # optional: https://cdn.yourdomain.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_PRIVATE_KEY
+        sync: false            # base64 or \n-escaped RS256 private key
+      - key: JWT_PUBLIC_KEY
+        sync: false
+      - key: MAIL_PROVIDER
+        sync: false
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+
+# Render Key Value (Redis®-compatible) backing services/cache.js.
+# maxmemoryPolicy allkeys-lru: under pressure the cache evicts LRU keys — safe,
+# entries are pure caches with a 60s TTL anyway.
+databases:
+  - name: online-music-cache
+    plan: 256mb
+    ipAllowList: []            # internal-only: only services in this account connect
+    maxmemoryPolicy: allkeys-lru

@@ -13,6 +13,7 @@ router.get('/confirm-email', authController.confirmEmail); // allow direct link 
 router.get('/verify-email', authController.confirmEmail); // alias matching your sample
 router.post('/resend-verify', authController.resendVerify);
 router.post('/login', authController.login);
+router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 router.post('/test-email', verifyAdmin, authController.testEmail);
 
@@ -40,6 +41,7 @@ router.get('/me', verifyToken, authController.getProfile);
 router.put('/me', verifyToken, upload.single('avatar'), authController.updateProfile);
 // Alias kept for clarity: multipart/form-data with field "avatar"
 router.put('/me/avatar', verifyToken, upload.single('avatar'), authController.updateProfile);
+router.get('/admin-check', verifyAdmin, (req, res) => res.json({ authorized: true }));
 // Admin user management (dashboard table: real DB data incl. seeded users)
 router.get('/users', verifyAdmin, authController.getAllUsers);
 router.get('/users/:id', verifyAdmin, authController.getUserById);

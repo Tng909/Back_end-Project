@@ -38,7 +38,7 @@ const userSchema = new mongoose.Schema({
     },
     isVerified: {
         type: Boolean,
-        default: true
+        default: false
     },
     isEmailConfirmed: {
         type: Boolean,
@@ -49,6 +49,14 @@ const userSchema = new mongoose.Schema({
         select: false
     },
     emailConfirmTokenExpires: {
+        type: Date,
+        select: false
+    },
+    resetPasswordTokenHash: {
+        type: String,
+        select: false
+    },
+    resetPasswordTokenExpires: {
         type: Date,
         select: false
     }

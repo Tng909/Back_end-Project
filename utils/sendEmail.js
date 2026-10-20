@@ -242,6 +242,32 @@ async function sendWelcomeEmail(toEmail, verifyUrl) {
   }
 }
 
+async function sendResetEmail(toEmail, resetUrl) {
+  const to = String(toEmail || '').trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(to)) return { sent: false, reason: 'Invalid recipient.' };
+  const cfg = resolveMailConfig();
+  if (!cfg.configured) {
+    console.log(`[Mail] Skip reset send to ${to} — sender not configured. Link (dev fallback): ${resetUrl}`);
+    return { sent: false, reason: 'Email sender not configured.' };
+  }
+  try {
+    const appName = process.env.APP_NAME || 'Online Music';
+    const fromAddr = cfg.from || cfg.user;
+    const info = await buildTransporter().sendMail({
+      from: `"${appName} Support" <${fromAddr}>`,
+      to,
+      subject: `Reset your ${appName} password`,
+      text: `Reset your password:\n${resetUrl}\n\nThis link expires in 15 minutes. If you did not request it, ignore this email.`,
+      html: `<p>Reset your password (expires in 15 minutes):</p><p><a href="${resetUrl}">Reset Password</a></p><p>If the button doesn't work: ${resetUrl}</p>`
+    });
+    console.log(`[Mail] Reset email sent to ${to} (id=${info.messageId || 'n/a'}).`);
+    return { sent: true, messageId: info.messageId, provider: cfg.provider };
+  } catch (err) {
+    console.warn(`[Mail] Could not send reset to ${to}:`, err.message);
+    return { sent: false, reason: err.message };
+  }
+}
+
 async function sendTestEmail(toEmail) {
   const to = String(toEmail || '').trim().toLowerCase();
   if (!/^\S+@\S+\.\S+$/.test(to)) {
@@ -263,4 +289,4 @@ async function sendTestEmail(toEmail) {
   return { messageId: info.messageId, provider: cfg.provider };
 }
 
-module.exports = { sendWelcomeEmail, sendTestEmail, buildTransporter, resolveMailConfig, checkSmtpOnBoot, isPlaceholderValue, isValidSmtpHost };
+module.exports = { sendWelcomeEmail, sendResetEmail, sendTestEmail, buildTransporter, resolveMailConfig, checkSmtpOnBoot, isPlaceholderValue, isValidSmtpHost };

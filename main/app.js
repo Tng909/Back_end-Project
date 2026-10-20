@@ -1,4 +1,7 @@
-const API_URL = 'http://localhost:3000/api/tracks';
+const API_BASE = (window.location.origin && window.location.origin.indexOf('http') === 0)
+  ? window.location.origin
+  : 'http://localhost:3000';
+const API_URL = `${API_BASE}/api/tracks`;
 
 let tracks = [];
 let currIdx = 0;
@@ -173,6 +176,10 @@ async function fetchTracks() {
     renderAllTracks(tracks);
     renderPopular();
     renderRecommended();
+    // Load liked ids FIRST, then repaint hearts — avoids the race where
+    // fetchLikeIds() fired on empty grids when called in parallel.
+    await fetchLikeIds();
+    refreshSections();
     if (tracks.length > 0 && window.MusicPlayer) window.MusicPlayer.setQueue(tracks, 0);
   } catch (err) {
     console.error('Failed to fetch tracks:', err);
@@ -183,6 +190,7 @@ async function fetchTracks() {
 
 // All Tracks: render EVERY track from seed.js/DB 1:1 (title, artist, album, genre, cover, audio)
 function renderAllTracks(list) {
+  try { renderArtistDropdown(); } catch (e) { console.error(e); }
   if (allTracksCount) {
     allTracksCount.textContent = list.length ? `${list.length} songs from database` : '';
   }
@@ -373,7 +381,10 @@ function trackCardHtml(track, badge = '') {
         ${badge ? `<span class="badge bg-success mb-2 align-self-start">${badge}</span>` : ''}
         <img src="${resolveUrl(track.coverArtUrl)}" class="card-img-top rounded mb-2" alt="${escapeHtml(track.title)}" loading="lazy">
         <div class="card-body p-0 text-truncate">
-          <h6 class="card-title text-truncate mb-1 fw-bold fs-6">${escapeHtml(track.title)}</h6>
+          <div class="d-flex align-items-start justify-content-between gap-1">
+            <h6 class="card-title text-truncate mb-1 fw-bold fs-6">${escapeHtml(track.title)}</h6>
+            ${likeButtonHtml(track)}
+          </div>
           <p class="card-text text-secondary text-truncate style-subtext mb-0">${escapeHtml(track.artist)}</p>
           <p class="card-text text-secondary text-truncate style-subtext mb-0">${escapeHtml(track.album || '')}${track.genre ? ` • ${escapeHtml(track.genre)}` : ''}</p>
         </div>
@@ -510,7 +521,11 @@ function fmtTime(sec) {
 /* ============================================
    YOUR LIBRARY — example playlists
    ============================================ */
-const PLAYLIST_API = 'http://localhost:3000/api/playlists';
+/* ============================================
+   PLAYLIST_API stays on the same origin as the page (works on 127.0.0.1,
+   LAN IP, Render hosting...) instead of hardcoded localhost:3000.
+   ============================================ */
+const PLAYLIST_API = `${API_BASE}/api/playlists`;
 let playlists = [];
 const playlistGrid = document.getElementById('playlistGrid');
 const playlistCount = document.getElementById('playlistCount');
@@ -604,17 +619,17 @@ function renderPlaylistDropdown() {
 function createNewAlbum() {
   const name = document.getElementById('createAlbumName').value.trim();
   const desc = document.getElementById('createAlbumDesc').value.trim();
-  const user = getStoredUser();
-  const userId = user && user._id ? user._id : null;
+  const token = localStorage.getItem('token');
   if (!name) return;
-  if (!userId) {
-    alert('You must be logged in to create an album.');
+  if (!token) {
+    window.location.href = 'verify/login.html?message=' + encodeURIComponent('Please log in to create an album.');
     return;
   }
+  // Owner comes from the JWT server-side — no user id in body anymore.
   fetch(PLAYLIST_API, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, description: desc, user: userId })
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name, description: desc })
   })
     .then((res) => {
       if (!res.ok) return res.json().then((e) => { throw new Error(e.error || `API ${res.status}`); });
@@ -686,7 +701,239 @@ function openCreateAlbumModal() {
   });
 })();
 
+
+/* ============================================
+   ARTIST ALBUM — dropdown of artists of all songs
+   Built from the same local tracks list as Home
+   (no login needed). Clicking an artist opens
+   library/artist.html?artist=<name> with that
+   artist's songs.
+   ============================================ */
+const artistMenuList = document.getElementById('artistMenuList');
+const artistCountEl = document.getElementById('artistCount');
+const artistEmptyDropdown = document.getElementById('artistEmptyDropdown');
+
+function groupTracksByArtist(list) {
+  const map = new Map();
+  for (const t of list || []) {
+    const name = String(t.artist || '').trim() || 'Unknown artist';
+    if (!map.has(name)) map.set(name, []);
+    map.get(name).push(t);
+  }
+  return [...map.entries()]
+    .map(([name, items]) => ({ name, count: items.length, cover: items[0] && items[0].coverArtUrl }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function artistDropdownItemHtml(a) {
+  return `
+    <div class="playlist-item artist-item" data-artist-name="${escapeHtml(a.name)}" tabindex="0" role="button" aria-label="Open songs by ${escapeHtml(a.name)}">
+      <div class="d-flex align-items-center gap-2 w-100">
+        ${a.cover ? `<img src="${resolveUrl(a.cover)}" alt="" class="artist-thumb" loading="lazy">` : '<span class="artist-thumb artist-thumb-fallback"><i class="fa-solid fa-microphone-lines"></i></span>'}
+        <div class="min-w-0 flex-grow-1">
+          <div class="playlist-item-name text-truncate">${escapeHtml(a.name)}</div>
+          <div class="playlist-item-text">${a.count} song${a.count === 1 ? '' : 's'}</div>
+        </div>
+        <i class="fa-solid fa-chevron-right text-secondary small"></i>
+      </div>
+    </div>
+  `;
+}
+
+function renderArtistDropdown() {
+  if (!artistMenuList) return;
+  const artists = groupTracksByArtist(tracks);
+  if (artistCountEl) artistCountEl.textContent = String(artists.length);
+  if (artistEmptyDropdown) artistEmptyDropdown.classList.toggle('d-none', artists.length > 0);
+  artistMenuList.innerHTML = artists.map(artistDropdownItemHtml).join('');
+}
+
+function openArtist(name) {
+  window.location.href = 'library/artist.html?artist=' + encodeURIComponent(name);
+}
+
+function openArtistFromDropdown(name) {
+  const toggle = document.querySelector('.artist-dropdown .dropdown-toggle');
+  if (toggle) {
+    const dropdown = bootstrap.Dropdown.getInstance(toggle);
+    if (dropdown) dropdown.hide();
+  }
+  openArtist(name);
+}
+
+(function () {
+  const menu = document.getElementById('artistMenuList');
+  if (!menu) return;
+  menu.addEventListener('click', (e) => {
+    const item = e.target.closest('.artist-item');
+    if (!item) return;
+    if (item.dataset.artistName) openArtistFromDropdown(item.dataset.artistName);
+  });
+  menu.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      const item = e.target.closest('.artist-item');
+      if (item && item.dataset.artistName) {
+        e.preventDefault();
+        openArtistFromDropdown(item.dataset.artistName);
+      }
+    }
+  });
+})();
+
 fetchPlaylists();
+
+/* ============================================
+   FAVORITES (server-backed)
+   Hearts on every track card + the player bar.
+   The "Liked Songs" and "Recently Played" lists
+   live on their own pages (library/liked.html,
+   library/history.html) — here we only keep the
+   hearts on the cards in sync with the server.
+   FAV_API is same-origin so likes work on any host/port.
+   ============================================ */
+const FAV_API = `${API_BASE}/api/favorites`;
+
+let likeIds = new Set();      // track ids the current user has liked
+let likeIdsLoaded = false;    // true once the server ids arrived (even when logged out)
+
+function isLoggedIn() { return Boolean(localStorage.getItem('token')); }
+
+function apiHeaders() {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  return { Authorization: `Bearer ${token}` };
+}
+
+// Heart next to the track name on every card. Clicking it must NOT start
+// playback — the delegated handler below stops propagation.
+function likeButtonHtml(track) {
+  const id = track && track._id ? String(track._id) : '';
+  if (!id) return '';
+  const liked = likeIds.has(id);
+  return `
+    <button type="button"
+      class="track-like-btn${liked ? ' is-liked' : ''}"
+      data-like-btn data-track-id="${escapeHtml(id)}"
+      aria-pressed="${liked}"
+      aria-label="${liked ? 'Remove from' : 'Add to'} Liked Songs"
+      title="${liked ? 'Remove from Liked Songs' : 'Add to Liked Songs'}">
+      <i class="${liked ? 'fa-solid' : 'fa-regular'} fa-heart"></i>
+    </button>`;
+}
+
+// One delegated handler for every heart (cards re-render constantly, so
+// per-button listeners would leak).
+// IMPORTANT: it runs in the CAPTURE phase. The Home cards play via an inline
+// `onclick="playTrack(...)"` on the card element, and an inline handler runs
+// during the bubble phase — a bubble-phase listener on `document` would fire
+// too late and the click would start playback as well as toggling the heart.
+document.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-like-btn]');
+  if (!btn) return;
+  event.preventDefault();
+  event.stopPropagation();
+  toggleFavorite(btn.dataset.trackId);
+}, true);
+
+async function toggleFavorite(trackId) {
+  if (!trackId) return;
+  if (!isLoggedIn()) {
+    window.location.href = `${API_BASE}/verify/login.html`;
+    return;
+  }
+  const liked = likeIds.has(trackId);
+  // Optimistic UI: paint the heart instantly so the button feels alive even
+  // if the network is slow; roll back only when the server rejects.
+  syncLikeButtons(trackId, !liked);
+  try {
+    const res = await fetch(`${FAV_API}/${encodeURIComponent(trackId)}`, {
+      method: liked ? 'DELETE' : 'POST',
+      headers: apiHeaders()
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    if (liked) likeIds.delete(trackId);
+    else likeIds.add(trackId);
+    syncLikeButtons(trackId, !liked);
+    // The player bar and the Liked Songs page listen for this event.
+    document.dispatchEvent(new CustomEvent('favorites-changed', { detail: { trackId, liked: !liked } }));
+  } catch (err) {
+    console.error('Failed to toggle favorite:', err);
+    syncLikeButtons(trackId, liked); // roll back the optimistic paint
+    alert('Could not update Liked Songs. Please try again.');
+  }
+}
+
+// Paint one track's hearts everywhere without a full re-render.
+// querySelector with an id containing quotes/backslashes would throw, so
+// match by dataset instead — never crashes, works for every id shape.
+function syncLikeButtons(trackId, liked) {
+  const wanted = String(trackId);
+  document.querySelectorAll('[data-like-btn]').forEach((btn) => {
+    if (String(btn.dataset.trackId) !== wanted) return;
+    btn.classList.toggle('is-liked', liked);
+    btn.setAttribute('aria-pressed', String(liked));
+    btn.setAttribute('aria-label', liked ? 'Remove from Liked Songs' : 'Add to Liked Songs');
+    btn.setAttribute('title', liked ? 'Remove from Liked Songs' : 'Add to Liked Songs');
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = liked ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
+  });
+}
+
+// Load the ids of the tracks the user liked so every heart on the page
+// is painted correctly (filled = liked, outline = not liked).
+async function fetchLikeIds() {
+  if (!isLoggedIn()) {
+    likeIds = new Set();
+    likeIdsLoaded = true;
+    syncAllLikeButtons();
+    return;
+  }
+  try {
+    const res = await fetch(`${FAV_API}/ids`, { headers: apiHeaders() });
+    if (res.status === 401 || res.status === 400) {
+      // Stale/expired token: drop it so the next click goes to login
+      // instead of failing silently forever.
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      likeIds = new Set();
+      renderAuthControls();
+    } else if (!res.ok) {
+      throw new Error(`API ${res.status}`);
+    } else {
+      likeIds = new Set((await res.json()).map(String));
+    }
+  } catch (err) {
+    console.error('Failed to load favorites:', err);
+  }
+  // The ids arrive after the cards are rendered, so repaint every heart.
+  likeIdsLoaded = true;
+  syncAllLikeButtons();
+}
+
+// Repaint every heart currently on the page (cards re-render often, so the
+// ids are cached in `likeIds` and applied here).
+function syncAllLikeButtons() {
+  document.querySelectorAll('[data-like-btn]').forEach((btn) => {
+    syncLikeButtons(btn.dataset.trackId, likeIds.has(String(btn.dataset.trackId)));
+  });
+}
+
+// player.js fires this after a like toggle in the player bar — keep the
+// hearts on the cards in sync without a page reload.
+document.addEventListener('favorites-changed', (e) => {
+  const detail = e && e.detail;
+  if (detail && detail.trackId) {
+    if (detail.liked) likeIds.add(String(detail.trackId));
+    else likeIds.delete(String(detail.trackId));
+    syncLikeButtons(detail.trackId, Boolean(detail.liked));
+  } else {
+    fetchLikeIds();
+  }
+});
+
+// Initial load (safe when logged out — the hearts just stay outlined).
+fetchLikeIds();
+
 
 /* ============================================
    CUSTOM SCROLL RAIL
